@@ -190,7 +190,6 @@ function main() {
 
   const gl = canvas.getContext("webgl2");
   if (!gl) { return; }
-  console.log("Got context");
 
   gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.CULL_FACE);
@@ -218,7 +217,6 @@ function main() {
     console.log(gl.getShaderInfoLog(vertexShader));
     return;
   }
-  console.log("Created vertex shader");
 
   const fragmentShaderSource = `#version 300 es
     precision highp float;
@@ -238,7 +236,6 @@ function main() {
     console.log(gl.getShaderInfoLog(fragmentShader));
     return;
   }
-  console.log("Created fragment shader");
 
   const program = gl.createProgram();
   gl.attachShader(program, vertexShader);
@@ -248,7 +245,6 @@ function main() {
     console.log(gl.getProgramInfoLog(program));
     return;
   }
-  console.log("Created program");
 
   const buffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -282,7 +278,7 @@ function main() {
   let frameCount = 0;
   const FRAME_COUNT_FOR_FPS = 60;
 
-  let cameraPosition: [number, number, number] = [0, 0, 700];
+  let cameraPosition: [number, number, number] = [0, 0, 1000];
   let cameraTarget: [number, number, number] = [0, 0, 0];
   let cameraUp: [number, number, number] = [0, 1, 0];
   let near = 0.01;
@@ -295,6 +291,57 @@ function main() {
   });
   window.addEventListener('keyup', (e) => {
     keysDown.delete(e.code);
+  });
+  canvas.addEventListener("click", async () => {
+    // https://developer.mozilla.org/en-US/docs/Web/API/Pointer_Lock_API
+    if (!document.pointerLockElement) {
+      await canvas.requestPointerLock({
+        unadjustedMovement: true,
+      });
+    }
+  });
+  canvas.addEventListener("mousemove", e => {
+    if (!document.pointerLockElement) {
+      return;
+    }
+
+    // Update
+    let targetToPositionNormalized = normalize(diff(cameraPosition, cameraTarget));
+    let upNormalized = normalize(diff(cameraUp, scale(targetToPositionNormalized, dot(targetToPositionNormalized, cameraUp))));
+    // Normal since other two vectors are unit and orthogonal.
+    let rightNormalized = cross(upNormalized, targetToPositionNormalized);
+
+    let axis1 = targetToPositionNormalized;
+    let axis2 = rightNormalized;
+    let angle = 0.0005 * e.movementX;
+
+    let positionToTarget = diff(cameraTarget, cameraPosition);
+    let positionToTargetMagnitude = magnitude(positionToTarget);
+    let positionToTargetRotated = add(
+      scale(axis1, Math.cos(angle) * (-positionToTargetMagnitude)),
+      scale(axis2, -Math.sin(angle) * (-positionToTargetMagnitude)),
+    );
+    cameraTarget = add(cameraPosition, positionToTargetRotated);
+
+    targetToPositionNormalized = normalize(diff(cameraPosition, cameraTarget));
+    upNormalized = normalize(diff(cameraUp, scale(targetToPositionNormalized, dot(targetToPositionNormalized, cameraUp))));
+    rightNormalized = cross(upNormalized, targetToPositionNormalized);
+
+    axis1 = upNormalized;
+    axis2 = targetToPositionNormalized;
+    angle = -0.0005 * e.movementY;
+
+    positionToTarget = diff(cameraTarget, cameraPosition);
+    positionToTargetMagnitude = magnitude(positionToTarget);
+    positionToTargetRotated = add(
+      scale(axis1, - Math.sin(angle) * (-positionToTargetMagnitude)),
+      scale(axis2,  Math.cos(angle) * (-positionToTargetMagnitude)),
+    );
+    cameraTarget = add(cameraPosition, positionToTargetRotated);
+    cameraUp = add(
+      scale(axis1, Math.cos(angle)),
+      scale(axis2, Math.sin(angle)),
+    );
   });
 
   function updateAndDraw() {
@@ -321,84 +368,6 @@ function main() {
       cameraTarget = add(cameraTarget, scale(rightNormalized, 10));
     }
 
-    if (keysDown.has('ArrowUp')) {
-      targetToPositionNormalized = normalize(diff(cameraPosition, cameraTarget));
-      upNormalized = normalize(diff(cameraUp, scale(targetToPositionNormalized, dot(targetToPositionNormalized, cameraUp))));
-      rightNormalized = cross(upNormalized, targetToPositionNormalized);
-
-      const axis1 = upNormalized;
-      const axis2 = targetToPositionNormalized;
-      const angle = 0.01;
-
-      const positionToTarget = diff(cameraTarget, cameraPosition);
-      const positionToTargetMagnitude = magnitude(positionToTarget);
-      const positionToTargetRotated = add(
-        scale(axis1, - Math.sin(angle) * (-positionToTargetMagnitude)),
-        scale(axis2,  Math.cos(angle) * (-positionToTargetMagnitude)),
-      );
-      cameraTarget = add(cameraPosition, positionToTargetRotated);
-      cameraUp = add(
-        scale(axis1, Math.cos(angle)),
-        scale(axis2, Math.sin(angle)),
-      );
-    }
-    if (keysDown.has('ArrowLeft')) {
-      targetToPositionNormalized = normalize(diff(cameraPosition, cameraTarget));
-      upNormalized = normalize(diff(cameraUp, scale(targetToPositionNormalized, dot(targetToPositionNormalized, cameraUp))));
-      rightNormalized = cross(upNormalized, targetToPositionNormalized);
-
-      const axis1 = targetToPositionNormalized;
-      const axis2 = rightNormalized;
-      const angle = -0.01;
-
-      const positionToTarget = diff(cameraTarget, cameraPosition);
-      const positionToTargetMagnitude = magnitude(positionToTarget);
-      const positionToTargetRotated = add(
-        scale(axis1, Math.cos(angle) * (-positionToTargetMagnitude)),
-        scale(axis2, -Math.sin(angle) * (-positionToTargetMagnitude)),
-      );
-      cameraTarget = add(cameraPosition, positionToTargetRotated);
-    }
-    if (keysDown.has('ArrowDown')) {
-      targetToPositionNormalized = normalize(diff(cameraPosition, cameraTarget));
-      upNormalized = normalize(diff(cameraUp, scale(targetToPositionNormalized, dot(targetToPositionNormalized, cameraUp))));
-      rightNormalized = cross(upNormalized, targetToPositionNormalized);
-
-      const axis1 = upNormalized;
-      const axis2 = targetToPositionNormalized;
-      const angle = -0.01;
-
-      const positionToTarget = diff(cameraTarget, cameraPosition);
-      const positionToTargetMagnitude = magnitude(positionToTarget);
-      const positionToTargetRotated = add(
-        scale(axis1, - Math.sin(angle) * (-positionToTargetMagnitude)),
-        scale(axis2,  Math.cos(angle) * (-positionToTargetMagnitude)),
-      );
-      cameraTarget = add(cameraPosition, positionToTargetRotated);
-      cameraUp = add(
-        scale(axis1, Math.cos(angle)),
-        scale(axis2, Math.sin(angle)),
-      );
-    }
-    if (keysDown.has('ArrowRight')) {
-      targetToPositionNormalized = normalize(diff(cameraPosition, cameraTarget));
-      upNormalized = normalize(diff(cameraUp, scale(targetToPositionNormalized, dot(targetToPositionNormalized, cameraUp))));
-      rightNormalized = cross(upNormalized, targetToPositionNormalized);
-
-      const axis1 = targetToPositionNormalized;
-      const axis2 = rightNormalized;
-      const angle = 0.01;
-
-      const positionToTarget = diff(cameraTarget, cameraPosition);
-      const positionToTargetMagnitude = magnitude(positionToTarget);
-      const positionToTargetRotated = add(
-        scale(axis1, Math.cos(angle) * (-positionToTargetMagnitude)),
-        scale(axis2, -Math.sin(angle) * (-positionToTargetMagnitude)),
-      );
-      cameraTarget = add(cameraPosition, positionToTargetRotated);
-    }
-
-
     // Draw
     targetToPositionNormalized = normalize(diff(cameraPosition, cameraTarget));
     upNormalized = normalize(diff(cameraUp, scale(targetToPositionNormalized, dot(targetToPositionNormalized, cameraUp))));
@@ -419,19 +388,15 @@ function main() {
       rotation[2 * 4 + i] = targetToPositionNormalized[i];
     }
 
-    let scaleMatrix = new Array(16).fill(0);
-    // https://stackoverflow.com/questions/49782148/whats-the-fourth-dimension-in-a-glsl-gl-position
-    scaleMatrix[0] = 2 / gl!.canvas.width;
-    scaleMatrix[5] = 2 / gl!.canvas.height;
-    scaleMatrix[10] = 1 / magnitude(diff(cameraPosition, cameraTarget));
-    scaleMatrix[15] = 1;
+    let perspectiveMatrix = new Array(16).fill(0);
+    perspectiveMatrix[0] = 1 / Math.tan(fov / 2);
+    perspectiveMatrix[5] = gl!.canvas.width / (Math.tan(fov / 2) * gl!.canvas.height);
+    perspectiveMatrix[10] = 1;
+    perspectiveMatrix[11] = -magnitude(diff(cameraPosition, cameraTarget)) + 2 * near;
+    perspectiveMatrix[15] = magnitude(diff(cameraPosition, cameraTarget));
+    perspectiveMatrix[14] = -1;
   
-    const worldToClip = matrixMultiply(scaleMatrix, matrixMultiply(rotation, targetShift));
-
-    console.log(cameraPosition);
-    console.log(cameraTarget);
-    console.log(cameraUp);
-    printMatrix(worldToClip);
+    const worldToClip = matrixMultiply(perspectiveMatrix, matrixMultiply(rotation, targetShift));
 
     gl!.viewport(0, 0, gl!.canvas.width, gl!.canvas.height);
     gl!.clearColor(0, 0, 0, 0);
