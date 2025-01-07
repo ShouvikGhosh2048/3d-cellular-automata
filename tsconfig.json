@@ -14,8 +14,9 @@
     "noEmit": true,
 
     /* Linting */
+    // https://flaviocopes.com/typescript-disable-declared-never-read/
     "strict": true,
-    "noUnusedLocals": true,
+    "noUnusedLocals": false,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
