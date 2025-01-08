@@ -117,6 +117,16 @@ function matrixInverse(a: number[]) {
   return res;
 }
 
+function clamp(x: number, min: number, max: number) {
+  if (x < min) {
+    return min;
+  } else if (max < x) {
+    return max;
+  } else {
+    return x;
+  }
+}
+
 function axisAlignedBox(
   position: [number, number, number],
   dimensions: [number, number, number],
@@ -257,8 +267,6 @@ function main() {
     ...axisAlignedBox([175, 50, -100], [50.0, 50.0, 50.0], [0, 0, 1.0]),
     ...axisAlignedBox([175, 125, -175], [50.0, 50.0, 50.0], [0, 0, 1.0]),
     ...axisAlignedBox([-200, -75, -200], [400.0, 50.0, 400.0], [0.5, 0.5, 0.5]),
-    // ...axisAlignedBox([-75, -75, 0.3], [100.0, 100.0, 0.4], [0, 0, 1.0]),
-    // ...axisAlignedBox([-50, -50, 0.2], [100.0, 100.0, 0.4], [0, 1.0, 0]),
   ]);
   gl.bufferData(gl.ARRAY_BUFFER, triangles, gl.STATIC_DRAW);
 
@@ -280,7 +288,8 @@ function main() {
   const FRAME_COUNT_FOR_FPS = 60;
 
   let cameraPosition: [number, number, number] = [0, 0, 1000];
-  let cameraTarget: [number, number, number] = [0, 0, 0];
+  let cameraTargetDistance = 1000;
+  let cameraTargetAngles = [Math.PI, 0]; // [angle-in-xz-from-z, angle-from-xz]
   let cameraUp: [number, number, number] = [0, 1, 0];
   let near = 0.01;
   let far = 10000;
@@ -307,69 +316,42 @@ function main() {
     }
 
     // Update
-    let targetToPositionNormalized = normalize(diff(cameraPosition, cameraTarget));
-    let upNormalized = normalize(diff(cameraUp, scale(targetToPositionNormalized, dot(targetToPositionNormalized, cameraUp))));
-    // Normal since other two vectors are unit and orthogonal.
-    let rightNormalized = cross(upNormalized, targetToPositionNormalized);
-
-    let axis1 = targetToPositionNormalized;
-    let axis2 = rightNormalized;
-    let angle = 0.0005 * e.movementX;
-
-    let positionToTarget = diff(cameraTarget, cameraPosition);
-    let positionToTargetMagnitude = magnitude(positionToTarget);
-    let positionToTargetRotated = add(
-      scale(axis1, Math.cos(angle) * (-positionToTargetMagnitude)),
-      scale(axis2, -Math.sin(angle) * (-positionToTargetMagnitude)),
-    );
-    cameraTarget = add(cameraPosition, positionToTargetRotated);
-
-    targetToPositionNormalized = normalize(diff(cameraPosition, cameraTarget));
-    upNormalized = normalize(diff(cameraUp, scale(targetToPositionNormalized, dot(targetToPositionNormalized, cameraUp))));
-    rightNormalized = cross(upNormalized, targetToPositionNormalized);
-
-    axis1 = upNormalized;
-    axis2 = targetToPositionNormalized;
-    angle = -0.0005 * e.movementY;
-
-    positionToTarget = diff(cameraTarget, cameraPosition);
-    positionToTargetMagnitude = magnitude(positionToTarget);
-    positionToTargetRotated = add(
-      scale(axis1, - Math.sin(angle) * (-positionToTargetMagnitude)),
-      scale(axis2,  Math.cos(angle) * (-positionToTargetMagnitude)),
-    );
-    cameraTarget = add(cameraPosition, positionToTargetRotated);
-    cameraUp = add(
-      scale(axis1, Math.cos(angle)),
-      scale(axis2, Math.sin(angle)),
-    );
+    cameraTargetAngles[0] -= 0.001 * e.movementX;
+    cameraTargetAngles[1] -= 0.001 * e.movementY;
+    cameraTargetAngles[1] = clamp(cameraTargetAngles[1], - Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
   });
 
   function updateAndDraw() {
     // Update
+    let cameraTarget: [number, number, number] = [
+      cameraPosition[0] + cameraTargetDistance * Math.cos(cameraTargetAngles[1]) * Math.sin(cameraTargetAngles[0]),
+      cameraPosition[1] + cameraTargetDistance * Math.sin(cameraTargetAngles[1]),
+      cameraPosition[2] + cameraTargetDistance * Math.cos(cameraTargetAngles[1]) * Math.cos(cameraTargetAngles[0])
+    ];
     let targetToPositionNormalized = normalize(diff(cameraPosition, cameraTarget));
     let upNormalized = normalize(diff(cameraUp, scale(targetToPositionNormalized, dot(targetToPositionNormalized, cameraUp))));
     // Normal since other two vectors are unit and orthogonal.
     let rightNormalized = cross(upNormalized, targetToPositionNormalized);
 
     if (keysDown.has('KeyW')) {
-      cameraPosition = diff(cameraPosition, scale(targetToPositionNormalized, 10));
-      cameraTarget = diff(cameraTarget, scale(targetToPositionNormalized, 10));
+      cameraPosition = diff(cameraPosition, scale(targetToPositionNormalized, 20));
     }
     if (keysDown.has('KeyA')) {
-      cameraPosition = diff(cameraPosition, scale(rightNormalized, 10));
-      cameraTarget = diff(cameraTarget, scale(rightNormalized, 10));
+      cameraPosition = diff(cameraPosition, scale(rightNormalized, 20));
     }
     if (keysDown.has('KeyS')) {
-      cameraPosition = add(cameraPosition, scale(targetToPositionNormalized, 10));
-      cameraTarget = add(cameraTarget, scale(targetToPositionNormalized, 10));
+      cameraPosition = add(cameraPosition, scale(targetToPositionNormalized, 20));
     }
     if (keysDown.has('KeyD')) {
-      cameraPosition = add(cameraPosition, scale(rightNormalized, 10));
-      cameraTarget = add(cameraTarget, scale(rightNormalized, 10));
+      cameraPosition = add(cameraPosition, scale(rightNormalized, 20));
     }
 
     // Draw
+    cameraTarget = [
+      cameraPosition[0] + cameraTargetDistance * Math.cos(cameraTargetAngles[1]) * Math.sin(cameraTargetAngles[0]),
+      cameraPosition[1] + cameraTargetDistance * Math.sin(cameraTargetAngles[1]),
+      cameraPosition[2] + cameraTargetDistance * Math.cos(cameraTargetAngles[1]) * Math.cos(cameraTargetAngles[0])
+    ];
     targetToPositionNormalized = normalize(diff(cameraPosition, cameraTarget));
     upNormalized = normalize(diff(cameraUp, scale(targetToPositionNormalized, dot(targetToPositionNormalized, cameraUp))));
     rightNormalized = cross(upNormalized, targetToPositionNormalized);
