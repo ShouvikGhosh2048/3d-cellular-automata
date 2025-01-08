@@ -260,13 +260,13 @@ function main() {
   const buffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   const triangles = new Float32Array([
-    ...axisAlignedBox([-225, -25, -25], [50.0, 50.0, 50.0], [1.0, 0, 0]),
-    ...axisAlignedBox([-225, 50, -100], [50.0, 50.0, 50.0], [1.0, 0, 0]),
-    ...axisAlignedBox([-225, 125, -175], [50.0, 50.0, 50.0], [1.0, 0, 0]),
-    ...axisAlignedBox([175, -25, -25], [50.0, 50.0, 50.0], [0, 0, 1.0]),
-    ...axisAlignedBox([175, 50, -100], [50.0, 50.0, 50.0], [0, 0, 1.0]),
-    ...axisAlignedBox([175, 125, -175], [50.0, 50.0, 50.0], [0, 0, 1.0]),
-    ...axisAlignedBox([-200, -75, -200], [400.0, 50.0, 400.0], [0.5, 0.5, 0.5]),
+    ...axisAlignedBox([-2.25, -.25, -.25], [0.5, 0.5, 0.5], [1.0, 0, 0]),
+    ...axisAlignedBox([-2.25, .5, -1], [0.5, 0.5, 0.5], [1.0, 0, 0]),
+    ...axisAlignedBox([-2.25, 1.25, -1.75], [0.5, 0.5, 0.5], [1.0, 0, 0]),
+    ...axisAlignedBox([1.75, -.25, -.25], [0.5, 0.5, 0.5], [0, 0, 1.0]),
+    ...axisAlignedBox([1.75, .5, -1], [0.5, 0.5, 0.5], [0, 0, 1.0]),
+    ...axisAlignedBox([1.75, 1.25, -1.75], [0.5, 0.5, 0.5], [0, 0, 1.0]),
+    ...axisAlignedBox([-2, -.75, -2], [4.0, 0.5, 4.0], [0.5, 0.5, 0.5]),
   ]);
   gl.bufferData(gl.ARRAY_BUFFER, triangles, gl.STATIC_DRAW);
 
@@ -287,12 +287,13 @@ function main() {
   let frameCount = 0;
   const FRAME_COUNT_FOR_FPS = 60;
 
-  let cameraPosition: [number, number, number] = [0, 0, 1000];
-  let cameraTargetDistance = 1000;
-  let cameraTargetAngles = [Math.PI, 0]; // [angle-in-xz-from-z, angle-from-xz]
+  let cameraPosition: [number, number, number] = [0, 0, 10];
+  let cameraDirectionAngles = [Math.PI, 0]; // [angle-in-xz-from-z, angle-from-xz]
   let cameraUp: [number, number, number] = [0, 1, 0];
+  // Prevent this: https://www.reddit.com/r/Unity3D/comments/s66qvs/whats_causing_this_strange_texture_flickering_in
+  // Near and far bounds based on Raylib
   let near = 0.01;
-  let far = 10000;
+  let far = 1000;
   let fov = 120;
 
   const keysDown = new Set<string>();
@@ -316,51 +317,49 @@ function main() {
     }
 
     // Update
-    cameraTargetAngles[0] -= 0.001 * e.movementX;
-    cameraTargetAngles[1] -= 0.001 * e.movementY;
-    cameraTargetAngles[1] = clamp(cameraTargetAngles[1], - Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
+    cameraDirectionAngles[0] -= 0.001 * e.movementX;
+    cameraDirectionAngles[1] -= 0.001 * e.movementY;
+    cameraDirectionAngles[1] = clamp(cameraDirectionAngles[1], - Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
   });
 
   function updateAndDraw() {
     // Update
-    let cameraTarget: [number, number, number] = [
-      cameraPosition[0] + cameraTargetDistance * Math.cos(cameraTargetAngles[1]) * Math.sin(cameraTargetAngles[0]),
-      cameraPosition[1] + cameraTargetDistance * Math.sin(cameraTargetAngles[1]),
-      cameraPosition[2] + cameraTargetDistance * Math.cos(cameraTargetAngles[1]) * Math.cos(cameraTargetAngles[0])
+    let cameraDirectionOppositeNormalized: [number, number, number] = [
+      -Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
+      -Math.sin(cameraDirectionAngles[1]),
+      -Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
     ];
-    let targetToPositionNormalized = normalize(diff(cameraPosition, cameraTarget));
-    let upNormalized = normalize(diff(cameraUp, scale(targetToPositionNormalized, dot(targetToPositionNormalized, cameraUp))));
+    let upNormalized = normalize(diff(cameraUp, scale(cameraDirectionOppositeNormalized, dot(cameraDirectionOppositeNormalized, cameraUp))));
     // Normal since other two vectors are unit and orthogonal.
-    let rightNormalized = cross(upNormalized, targetToPositionNormalized);
+    let rightNormalized = cross(upNormalized, cameraDirectionOppositeNormalized);
 
     if (keysDown.has('KeyW')) {
-      cameraPosition = diff(cameraPosition, scale(targetToPositionNormalized, 20));
+      cameraPosition = diff(cameraPosition, scale(cameraDirectionOppositeNormalized, 0.2));
     }
     if (keysDown.has('KeyA')) {
-      cameraPosition = diff(cameraPosition, scale(rightNormalized, 20));
+      cameraPosition = diff(cameraPosition, scale(rightNormalized, 0.2));
     }
     if (keysDown.has('KeyS')) {
-      cameraPosition = add(cameraPosition, scale(targetToPositionNormalized, 20));
+      cameraPosition = add(cameraPosition, scale(cameraDirectionOppositeNormalized, 0.2));
     }
     if (keysDown.has('KeyD')) {
-      cameraPosition = add(cameraPosition, scale(rightNormalized, 20));
+      cameraPosition = add(cameraPosition, scale(rightNormalized, 0.2));
     }
 
     // Draw
-    cameraTarget = [
-      cameraPosition[0] + cameraTargetDistance * Math.cos(cameraTargetAngles[1]) * Math.sin(cameraTargetAngles[0]),
-      cameraPosition[1] + cameraTargetDistance * Math.sin(cameraTargetAngles[1]),
-      cameraPosition[2] + cameraTargetDistance * Math.cos(cameraTargetAngles[1]) * Math.cos(cameraTargetAngles[0])
+    cameraDirectionOppositeNormalized = [
+      -Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
+      -Math.sin(cameraDirectionAngles[1]),
+      -Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
     ];
-    targetToPositionNormalized = normalize(diff(cameraPosition, cameraTarget));
-    upNormalized = normalize(diff(cameraUp, scale(targetToPositionNormalized, dot(targetToPositionNormalized, cameraUp))));
-    rightNormalized = cross(upNormalized, targetToPositionNormalized);
+    upNormalized = normalize(diff(cameraUp, scale(cameraDirectionOppositeNormalized, dot(cameraDirectionOppositeNormalized, cameraUp))));
+    rightNormalized = cross(upNormalized, cameraDirectionOppositeNormalized);
   
-    const targetShift = new Array(16).fill(0);
-    targetShift[0] = targetShift[5] = targetShift[10] = targetShift[15] = 1;
-    targetShift[3] = -cameraTarget[0];
-    targetShift[7] = -cameraTarget[1];
-    targetShift[11] = -cameraTarget[2];
+    const cameraPositionShift = new Array(16).fill(0);
+    cameraPositionShift[0] = cameraPositionShift[5] = cameraPositionShift[10] = cameraPositionShift[15] = 1;
+    cameraPositionShift[3] = -cameraPosition[0];
+    cameraPositionShift[7] = -cameraPosition[1];
+    cameraPositionShift[11] = -cameraPosition[2];
   
     let rotation = new Array(16).fill(0);
     rotation[15] = 1;
@@ -368,18 +367,17 @@ function main() {
     for (let i = 0; i < 3; i++) {
       rotation[0 * 4 + i] = rightNormalized[i];
       rotation[1 * 4 + i] = upNormalized[i];
-      rotation[2 * 4 + i] = targetToPositionNormalized[i];
+      rotation[2 * 4 + i] = cameraDirectionOppositeNormalized[i];
     }
 
     let perspectiveMatrix = new Array(16).fill(0);
     perspectiveMatrix[0] = 1 / Math.tan(fov / 2);
     perspectiveMatrix[5] = gl!.canvas.width / (Math.tan(fov / 2) * gl!.canvas.height);
-    perspectiveMatrix[10] = 1;
-    perspectiveMatrix[11] = -magnitude(diff(cameraPosition, cameraTarget)) + 2 * near;
-    perspectiveMatrix[15] = magnitude(diff(cameraPosition, cameraTarget));
-    perspectiveMatrix[14] = -1;
+    perspectiveMatrix[11] = 2.0 / (1 / near - 1 / far);
+    perspectiveMatrix[10] = perspectiveMatrix[11] / far + 1;
+    perspectiveMatrix[14] = -1.0;
   
-    const worldToClip = matrixMultiply(perspectiveMatrix, matrixMultiply(rotation, targetShift));
+    const worldToClip = matrixMultiply(perspectiveMatrix, matrixMultiply(rotation, cameraPositionShift));
 
     gl!.viewport(0, 0, gl!.canvas.width, gl!.canvas.height);
     gl!.clearColor(0, 0, 0, 0);
