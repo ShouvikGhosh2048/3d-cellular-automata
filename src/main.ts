@@ -130,7 +130,7 @@ function clamp(x: number, min: number, max: number) {
 function axisAlignedBox(
   position: [number, number, number],
   dimensions: [number, number, number],
-  color: [number, number, number],
+  color: [number, number, number, number],
 ) {
   return [
     // Back
@@ -183,6 +183,50 @@ function axisAlignedBox(
   ];
 }
 
+function plane(
+  center: [number, number, number],
+  normal: [number, number, number],
+  size: number,
+  color: [number, number, number, number],
+) {
+  // Gram Schmidt Orthogonalization
+  const axes = [normal];
+  if (normal[0] !== 0) {
+    axes.push([0, 1, 0]);
+    axes.push([0, 0, 1]);
+  } else if (normal[1] !== 0) {
+    axes.push([1, 0, 0]);
+    axes.push([0, 0, 1]);
+  } else {
+    axes.push([1, 0, 0]);
+    axes.push([0, 1, 0]);
+  }
+
+  for (let i = 0; i < 3; i++) {
+    let axis = axes[i];
+    for (let j = 0; j < i; j++) {
+      axis = diff(axis, scale(axes[j], dot(axes[j], axes[i])));
+    }
+    axes[i] = normalize(axis);
+  }  
+
+  return [
+    ...diff(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
+    ...diff(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
+    ...add(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
+    ...diff(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
+    ...add(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
+    ...add(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
+
+    ...diff(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
+    ...add(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
+    ...diff(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
+    ...diff(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
+    ...add(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
+    ...add(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
+  ];
+}
+
 function main() {
   const canvas = document.querySelector('canvas');
   if (!canvas) { return; }
@@ -198,17 +242,27 @@ function main() {
     canvas.height = Math.floor(window.innerHeight);
   });
 
-  const gl = canvas.getContext("webgl2");
+  const gl = canvas.getContext("webgl2", {
+    alpha: true,
+    premultipliedAlpha: false,
+  });
   if (!gl) { return; }
 
   gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.CULL_FACE);
+  // https://stackoverflow.com/a/74804393
+  // https://www.reddit.com/r/opengl/comments/8vu2t0/issues_with_alpha_channel_in_webgl/
+  // https://webglfundamentals.org/webgl/lessons/webgl-and-alpha.html
+  // https://www.opengl.org/archives/resources/faq/technical/transparency.htm
+  // https://stackoverflow.com/a/12286297
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
   const vertexShaderSource = `#version 300 es
     in vec3 position;
-    in vec3 inColor;
+    in vec4 inColor;
     in vec3 normal;
-    out vec3 outColor;
+    out vec4 outColor;
     uniform mat4 worldToClip;
   
     void main() {
@@ -216,7 +270,7 @@ function main() {
       vec4 clipPosition = worldToClip * vec4(position, 1);
       clipPosition.z = -clipPosition.z;
       gl_Position = clipPosition;
-      outColor = inColor * (2.0 + dot(vec3(0.3, 0.5, 1), normal)) / 3.0;
+      outColor = vec4(inColor.rgb * (2.0 + dot(vec3(0.3, 0.5, 1), normal)) / 3.0, inColor.a);
     }
   `;
   const vertexShader = gl.createShader(gl.VERTEX_SHADER);
@@ -232,10 +286,10 @@ function main() {
     precision highp float;
 
     out vec4 color;
-    in vec3 outColor;
+    in vec4 outColor;
 
     void main() {
-      color = vec4(outColor, 1);
+      color = outColor;
     }
   `;
   const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
@@ -260,13 +314,14 @@ function main() {
   const buffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   const triangles = new Float32Array([
-    ...axisAlignedBox([-2.25, -.25, -.25], [0.5, 0.5, 0.5], [1.0, 0, 0]),
-    ...axisAlignedBox([-2.25, .5, -1], [0.5, 0.5, 0.5], [1.0, 0, 0]),
-    ...axisAlignedBox([-2.25, 1.25, -1.75], [0.5, 0.5, 0.5], [1.0, 0, 0]),
-    ...axisAlignedBox([1.75, -.25, -.25], [0.5, 0.5, 0.5], [0, 0, 1.0]),
-    ...axisAlignedBox([1.75, .5, -1], [0.5, 0.5, 0.5], [0, 0, 1.0]),
-    ...axisAlignedBox([1.75, 1.25, -1.75], [0.5, 0.5, 0.5], [0, 0, 1.0]),
-    ...axisAlignedBox([-2, -.75, -2], [4.0, 0.5, 4.0], [0.5, 0.5, 0.5]),
+    ...axisAlignedBox([-2.25, -.25, -.25], [0.5, 0.5, 0.5], [1.0, 0, 0, 1.0]),
+    ...axisAlignedBox([-2.25, .5, -1], [0.5, 0.5, 0.5], [1.0, 0, 0, 1.0]),
+    ...axisAlignedBox([-2.25, 1.25, -1.75], [0.5, 0.5, 0.5], [1.0, 0, 0, 1.0]),
+    ...axisAlignedBox([1.75, -.25, -.25], [0.5, 0.5, 0.5], [0, 0, 1.0, 1.0]),
+    ...axisAlignedBox([1.75, .5, -1], [0.5, 0.5, 0.5], [0, 0, 1.0, 1.0]),
+    ...axisAlignedBox([1.75, 1.25, -1.75], [0.5, 0.5, 0.5], [0, 0, 1.0, 1.0]),
+    ...axisAlignedBox([-2, -.75, -2], [4.0, 0.5, 4.0], [0.5, 0.5, 0.5, 1.0]),
+    ...plane([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 10.0, [1.0, 1.0, 1.0, 0.2]),
   ]);
   gl.bufferData(gl.ARRAY_BUFFER, triangles, gl.STATIC_DRAW);
 
@@ -274,21 +329,21 @@ function main() {
   gl.bindVertexArray(vao);
   const positionLocation = gl.getAttribLocation(program, 'position');
   gl.enableVertexAttribArray(positionLocation);
-  gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 9 * 4, 0);
+  gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 10 * 4, 0);
   const inColorLocation = gl.getAttribLocation(program, 'inColor');
   gl.enableVertexAttribArray(inColorLocation);
-  gl.vertexAttribPointer(inColorLocation, 3, gl.FLOAT, false, 9 * 4, 3 * 4);
+  gl.vertexAttribPointer(inColorLocation, 4, gl.FLOAT, false, 10 * 4, 3 * 4);
   const normalLocation = gl.getAttribLocation(program, "normal");
   gl.enableVertexAttribArray(normalLocation);
-  gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 9 * 4, 6 * 4);
+  gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 10 * 4, 7 * 4);
   const worldToClipLocation = gl.getUniformLocation(program, "worldToClip");
 
   let lastTime = Date.now();
   let frameCount = 0;
   const FRAME_COUNT_FOR_FPS = 60;
 
-  let cameraPosition: [number, number, number] = [0, 0, 10];
-  let cameraDirectionAngles = [Math.PI, 0]; // [angle-in-xz-from-z, angle-from-xz]
+  let cameraPosition: [number, number, number] = [0, 10, 10];
+  let cameraDirectionAngles = [Math.PI, -Math.PI / 4]; // [angle-in-xz-from-z, angle-from-xz]
   let cameraUp: [number, number, number] = [0, 1, 0];
   // Prevent this: https://www.reddit.com/r/Unity3D/comments/s66qvs/whats_causing_this_strange_texture_flickering_in
   // Near and far bounds based on Raylib
@@ -317,8 +372,8 @@ function main() {
     }
 
     // Update
-    cameraDirectionAngles[0] -= 0.001 * e.movementX;
-    cameraDirectionAngles[1] -= 0.001 * e.movementY;
+    cameraDirectionAngles[0] -= 0.0005 * e.movementX;
+    cameraDirectionAngles[1] -= 0.0005 * e.movementY;
     cameraDirectionAngles[1] = clamp(cameraDirectionAngles[1], - Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
   });
 
@@ -334,16 +389,16 @@ function main() {
     let rightNormalized = cross(upNormalized, cameraDirectionOppositeNormalized);
 
     if (keysDown.has('KeyW')) {
-      cameraPosition = diff(cameraPosition, scale(cameraDirectionOppositeNormalized, 0.2));
+      cameraPosition = diff(cameraPosition, scale(cameraDirectionOppositeNormalized, 0.1));
     }
     if (keysDown.has('KeyA')) {
-      cameraPosition = diff(cameraPosition, scale(rightNormalized, 0.2));
+      cameraPosition = diff(cameraPosition, scale(rightNormalized, 0.1));
     }
     if (keysDown.has('KeyS')) {
-      cameraPosition = add(cameraPosition, scale(cameraDirectionOppositeNormalized, 0.2));
+      cameraPosition = add(cameraPosition, scale(cameraDirectionOppositeNormalized, 0.1));
     }
     if (keysDown.has('KeyD')) {
-      cameraPosition = add(cameraPosition, scale(rightNormalized, 0.2));
+      cameraPosition = add(cameraPosition, scale(rightNormalized, 0.1));
     }
 
     // Draw
