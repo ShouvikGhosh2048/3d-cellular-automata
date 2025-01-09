@@ -311,19 +311,15 @@ function main() {
     return;
   }
 
+  const cubes: [number, number, number][] = [];
+  const VERTEX_LIMIT = 10000 * 3;
   const buffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  const triangles = new Float32Array([
-    ...axisAlignedBox([-2.25, -.25, -.25], [0.5, 0.5, 0.5], [1.0, 0, 0, 1.0]),
-    ...axisAlignedBox([-2.25, .5, -1], [0.5, 0.5, 0.5], [1.0, 0, 0, 1.0]),
-    ...axisAlignedBox([-2.25, 1.25, -1.75], [0.5, 0.5, 0.5], [1.0, 0, 0, 1.0]),
-    ...axisAlignedBox([1.75, -.25, -.25], [0.5, 0.5, 0.5], [0, 0, 1.0, 1.0]),
-    ...axisAlignedBox([1.75, .5, -1], [0.5, 0.5, 0.5], [0, 0, 1.0, 1.0]),
-    ...axisAlignedBox([1.75, 1.25, -1.75], [0.5, 0.5, 0.5], [0, 0, 1.0, 1.0]),
-    ...axisAlignedBox([-2, -.75, -2], [4.0, 0.5, 4.0], [0.5, 0.5, 0.5, 1.0]),
-    ...plane([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], 10.0, [1.0, 1.0, 1.0, 0.2]),
-  ]);
-  gl.bufferData(gl.ARRAY_BUFFER, triangles, gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, 4 * 10 * VERTEX_LIMIT, gl.DYNAMIC_DRAW);
+
+  const planeTriangles = plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], 200.0, [1.0, 1.0, 1.0, 0.2]);
+  let triangleCount = planeTriangles.length / 10;
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array(planeTriangles));
 
   const vao = gl.createVertexArray();
   gl.bindVertexArray(vao);
@@ -351,23 +347,98 @@ function main() {
   let far = 1000;
   let fov = 120;
 
+  let view: 'move' | 'edit' = 'move';
+
   const keysDown = new Set<string>();
   window.addEventListener('keydown', (e) => {
     keysDown.add(e.code);
+
+    if (e.code === 'KeyV') {
+      if (view === 'move') {
+        view = 'edit';
+        if (document.pointerLockElement) {
+          document.exitPointerLock();
+        }
+      } else {
+        view = 'move';
+      }
+    }
   });
   window.addEventListener('keyup', (e) => {
     keysDown.delete(e.code);
   });
   canvas.addEventListener("click", async () => {
     // https://developer.mozilla.org/en-US/docs/Web/API/Pointer_Lock_API
-    if (!document.pointerLockElement) {
-      await canvas.requestPointerLock({
-        unadjustedMovement: true,
-      });
+    if (view === 'move') {
+      if (!document.pointerLockElement) {
+        await canvas.requestPointerLock({
+          unadjustedMovement: true,
+        });
+      }
     }
   });
-  canvas.addEventListener("mousemove", e => {
-    if (!document.pointerLockElement) {
+  canvas.addEventListener("mousedown", e => {
+    if (view === 'edit') {
+      let cameraDirectionOppositeNormalized: [number, number, number] = [
+        -Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
+        -Math.sin(cameraDirectionAngles[1]),
+        -Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
+      ];
+      let upNormalized = normalize(diff(cameraUp, scale(cameraDirectionOppositeNormalized, dot(cameraDirectionOppositeNormalized, cameraUp))));
+      // Normal since other two vectors are unit and orthogonal.
+      let rightNormalized = cross(upNormalized, cameraDirectionOppositeNormalized);
+
+      const mouseDirectionCameraCoordinates = [
+        (e.clientX - gl.canvas.width / 2),
+        (gl.canvas.height / 2 - e.clientY),
+        -(gl.canvas.width / 2) / Math.tan(fov / 2),
+      ];
+
+      // Ray from camera center to mouse, in world coordinates.
+      const mouseDirection = add(
+        scale(rightNormalized, mouseDirectionCameraCoordinates[0]),
+        add(
+          scale(upNormalized, mouseDirectionCameraCoordinates[1]),
+          scale(cameraDirectionOppositeNormalized, mouseDirectionCameraCoordinates[2])
+        )
+      );
+
+      if (
+        cameraPosition[1] > 0 && mouseDirection[1] < 0
+        || cameraPosition[1] < 0 && mouseDirection[1] > 0
+      ) {
+        const mouseXZPlanePoint = add(
+          cameraPosition,
+          scale(mouseDirection, -cameraPosition[1] / mouseDirection[1])
+        );
+        const x = Math.floor(10 * mouseXZPlanePoint[0]) / 10.0;
+        const z = Math.floor(10 * mouseXZPlanePoint[2]) / 10.0;
+        let exists = false;
+        for (const cube of cubes) {
+          if (cube[0] === x && cube[2] === z) {
+            exists = true;
+            break;
+          }
+        }
+        if (!exists) {
+          cubes.push([x, 0.01, z]);
+        }
+
+        let triangles = plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], 200.0, [1.0, 1.0, 1.0, 0.2]);
+        for (const cube of cubes) {
+          triangles.push(...axisAlignedBox(cube, [0.1, 0.1, 0.1], [1.0, 0.0, 0.0, 1.0]));
+        }
+        if (triangles.length > 10 * VERTEX_LIMIT) {
+          console.log('Too many triangles, drawing a subset');
+          triangles = triangles.slice(0, 10 * VERTEX_LIMIT);
+        }
+        triangleCount = triangles.length / 10;
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array(triangles));
+      }
+    }
+  });
+  window.addEventListener("mousemove", e => {
+    if (view !== 'move' || !document.pointerLockElement) {
       return;
     }
 
@@ -379,6 +450,31 @@ function main() {
 
   function updateAndDraw() {
     // Update
+    if (view === 'move') {
+      let cameraDirectionOppositeNormalized: [number, number, number] = [
+        -Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
+        -Math.sin(cameraDirectionAngles[1]),
+        -Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
+      ];
+      let upNormalized = normalize(diff(cameraUp, scale(cameraDirectionOppositeNormalized, dot(cameraDirectionOppositeNormalized, cameraUp))));
+      // Normal since other two vectors are unit and orthogonal.
+      let rightNormalized = cross(upNormalized, cameraDirectionOppositeNormalized);
+  
+      if (keysDown.has('KeyW')) {
+        cameraPosition = diff(cameraPosition, scale(cameraDirectionOppositeNormalized, 0.1));
+      }
+      if (keysDown.has('KeyA')) {
+        cameraPosition = diff(cameraPosition, scale(rightNormalized, 0.1));
+      }
+      if (keysDown.has('KeyS')) {
+        cameraPosition = add(cameraPosition, scale(cameraDirectionOppositeNormalized, 0.1));
+      }
+      if (keysDown.has('KeyD')) {
+        cameraPosition = add(cameraPosition, scale(rightNormalized, 0.1));
+      }
+    }
+
+    // Draw
     let cameraDirectionOppositeNormalized: [number, number, number] = [
       -Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
       -Math.sin(cameraDirectionAngles[1]),
@@ -387,28 +483,6 @@ function main() {
     let upNormalized = normalize(diff(cameraUp, scale(cameraDirectionOppositeNormalized, dot(cameraDirectionOppositeNormalized, cameraUp))));
     // Normal since other two vectors are unit and orthogonal.
     let rightNormalized = cross(upNormalized, cameraDirectionOppositeNormalized);
-
-    if (keysDown.has('KeyW')) {
-      cameraPosition = diff(cameraPosition, scale(cameraDirectionOppositeNormalized, 0.1));
-    }
-    if (keysDown.has('KeyA')) {
-      cameraPosition = diff(cameraPosition, scale(rightNormalized, 0.1));
-    }
-    if (keysDown.has('KeyS')) {
-      cameraPosition = add(cameraPosition, scale(cameraDirectionOppositeNormalized, 0.1));
-    }
-    if (keysDown.has('KeyD')) {
-      cameraPosition = add(cameraPosition, scale(rightNormalized, 0.1));
-    }
-
-    // Draw
-    cameraDirectionOppositeNormalized = [
-      -Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
-      -Math.sin(cameraDirectionAngles[1]),
-      -Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
-    ];
-    upNormalized = normalize(diff(cameraUp, scale(cameraDirectionOppositeNormalized, dot(cameraDirectionOppositeNormalized, cameraUp))));
-    rightNormalized = cross(upNormalized, cameraDirectionOppositeNormalized);
   
     const cameraPositionShift = new Array(16).fill(0);
     cameraPositionShift[0] = cameraPositionShift[5] = cameraPositionShift[10] = cameraPositionShift[15] = 1;
@@ -446,13 +520,14 @@ function main() {
       worldToClip[2], worldToClip[6], worldToClip[10], worldToClip[14],
       worldToClip[3], worldToClip[7], worldToClip[11], worldToClip[15],
     ]);
-    gl!.drawArrays(gl!.TRIANGLES, 0, triangles.length / 3);
+    gl!.drawArrays(gl!.TRIANGLES, 0, triangleCount);
 
     frameCount += 1;
     if (frameCount === FRAME_COUNT_FOR_FPS) {
       frameCount = 0;
       const currTime = Date.now();
-      fpsSpan.innerText = `FPS: ${Math.round(FRAME_COUNT_FOR_FPS * 1000 / (currTime - lastTime))}`;
+      // TODO: Move the view into a different span?
+      fpsSpan.innerText = `FPS: ${Math.round(FRAME_COUNT_FOR_FPS * 1000 / (currTime - lastTime))} | View: ${view}`;
       lastTime = currTime;
     }
     requestAnimationFrame(updateAndDraw);
