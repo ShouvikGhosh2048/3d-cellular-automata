@@ -350,134 +350,104 @@ function main() {
   let far = 1000;
   let fov = 120;
 
-  let view: 'move' | 'edit' = 'move';
-
   let mousePosition = [window.innerWidth / 2, window.innerHeight / 2];
 
   const keysDown = new Set<string>();
   window.addEventListener('keydown', (e) => {
     keysDown.add(e.code);
-
-    if (e.code === 'KeyV') {
-      if (view === 'move') {
-        view = 'edit';
-        if (document.pointerLockElement) {
-          document.exitPointerLock();
-        }
-      } else {
-        view = 'move';
-      }
-    }
   });
   window.addEventListener('keyup', (e) => {
     keysDown.delete(e.code);
   });
   canvas.addEventListener("click", async () => {
     // https://developer.mozilla.org/en-US/docs/Web/API/Pointer_Lock_API
-    if (view === 'move') {
-      if (!document.pointerLockElement) {
-        await canvas.requestPointerLock({
-          unadjustedMovement: true,
-        });
-      }
+    if (!document.pointerLockElement) {
+      await canvas.requestPointerLock({
+        unadjustedMovement: true,
+      });
     }
   });
   window.addEventListener("mousemove", e => {
     mousePosition = [e.clientX, e.clientY];
   });
-  canvas.addEventListener("mousedown", e => {
-    if (view === 'edit') {
-      let cameraDirectionOppositeNormalized: [number, number, number] = [
-        -Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
-        -Math.sin(cameraDirectionAngles[1]),
-        -Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
-      ];
-      let upNormalized = normalize(diff(cameraUp, scale(cameraDirectionOppositeNormalized, dot(cameraDirectionOppositeNormalized, cameraUp))));
-      // Normal since other two vectors are unit and orthogonal.
-      let rightNormalized = cross(upNormalized, cameraDirectionOppositeNormalized);
+  canvas.addEventListener("mousedown", () => {
+    if (!document.pointerLockElement) {
+      return;
+    }
 
-      const mouseDirectionCameraCoordinates = [
-        (e.clientX - gl.canvas.width / 2),
-        (gl.canvas.height / 2 - e.clientY),
-        -(gl.canvas.width / 2) / Math.tan(fov / 2),
-      ];
+    // Ray from camera center to mouse, in world coordinates.
+    const cameraDirection: [number, number, number] = [
+      Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
+      Math.sin(cameraDirectionAngles[1]),
+      Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
+    ];
 
-      // Ray from camera center to mouse, in world coordinates.
-      const mouseDirection = add(
-        scale(rightNormalized, mouseDirectionCameraCoordinates[0]),
-        add(
-          scale(upNormalized, mouseDirectionCameraCoordinates[1]),
-          scale(cameraDirectionOppositeNormalized, mouseDirectionCameraCoordinates[2])
-        )
-      );
+    // TODO: Handle edge cases for parallel?
+    const tXZPlane = -cameraPosition[1] / cameraDirection[1];
+    let tmin = Infinity;
+    if (tXZPlane > 0) {
+      tmin = tXZPlane;
+    }
+    let center: null | [number, number, number] = null;
+    let normal: null | [number, number, number] = null;
+    
+    for (const cube of cubes) {
+      for (let i = 0; i < 3; i++) {
+        for (let j = -1; j <= 1; j += 2) {
+          let t = (cube[i] + 0.5 + 0.5 * j - cameraPosition[i]) / cameraDirection[i];
+          let mousePoint = add(cameraPosition, scale(cameraDirection, t));
+          let onCube = true;
+          for (let k = 0; k < 3; k++) {
+            if (i !== k && !(cube[k] <= mousePoint[k] && mousePoint[k] <= cube[k] + 1)) {
+              onCube = false;
+            }
+          }
 
-      // TODO: Handle edge cases for parallel?
-      const tXZPlane = -cameraPosition[1] / mouseDirection[1];
-      let tmin = Infinity;
-      if (tXZPlane > 0) {
-        tmin = tXZPlane;
+          if (t > 0 && t < tmin && onCube) {
+            tmin = t;
+            center = [cube[0] + 0.5, cube[1] + 0.5, cube[2] + 0.5];
+            center[i] += j * 0.51;
+            normal = [0, 0, 0];
+            normal[i] = j;
+          }
+        }
       }
-      let center: null | [number, number, number] = null;
-      let normal: null | [number, number, number] = null;
-      
+    }
+
+    if (center && normal) {
+      const position = add(diff(center, [0.5, 0.5, 0.5]), scale(normal, 0.49));
+      const x = Math.round(position[0]);
+      const y = Math.round(position[1]);
+      const z = Math.round(position[2]);
+
+      let exists = false;
       for (const cube of cubes) {
-        for (let i = 0; i < 3; i++) {
-          for (let j = -1; j <= 1; j += 2) {
-            let t = (cube[i] + 0.5 + 0.5 * j - cameraPosition[i]) / mouseDirection[i];
-            let mousePoint = add(cameraPosition, scale(mouseDirection, t));
-            let onCube = true;
-            for (let k = 0; k < 3; k++) {
-              if (i !== k && !(cube[k] <= mousePoint[k] && mousePoint[k] <= cube[k] + 1)) {
-                onCube = false;
-              }
-            }
-
-            if (t > 0 && t < tmin && onCube) {
-              tmin = t;
-              center = [cube[0] + 0.5, cube[1] + 0.5, cube[2] + 0.5];
-              center[i] += j * 0.51;
-              normal = [0, 0, 0];
-              normal[i] = j;
-            }
-          }
+        if (cube[0] === x && cube[1] === y && cube[2] === z) {
+          exists = true;
+          break;
         }
       }
-
-      if (center && normal) {
-        const position = add(diff(center, [0.5, 0.5, 0.5]), scale(normal, 0.49));
-        const x = Math.round(position[0]);
-        const y = Math.round(position[1]);
-        const z = Math.round(position[2]);
-
-        let exists = false;
-        for (const cube of cubes) {
-          if (cube[0] === x && cube[1] === y && cube[2] === z) {
-            exists = true;
-            break;
-          }
+      if (!exists) {
+        cubes.push([x, y + 0.01, z]);
+      }
+    } else if (tXZPlane > 0) {
+      const mouseXZPlanePoint = add(cameraPosition, scale(cameraDirection, tXZPlane));
+      const x = Math.floor(mouseXZPlanePoint[0]);
+      const z = Math.floor(mouseXZPlanePoint[2]);
+      let exists = false;
+      for (const cube of cubes) {
+        if (cube[0] === x && cube[2] === z) {
+          exists = true;
+          break;
         }
-        if (!exists) {
-          cubes.push([x, y + 0.01, z]);
-        }
-      } else if (tXZPlane > 0) {
-        const mouseXZPlanePoint = add(cameraPosition, scale(mouseDirection, tXZPlane));
-        const x = Math.floor(mouseXZPlanePoint[0]);
-        const z = Math.floor(mouseXZPlanePoint[2]);
-        let exists = false;
-        for (const cube of cubes) {
-          if (cube[0] === x && cube[2] === z) {
-            exists = true;
-            break;
-          }
-        }
-        if (!exists) {
-          cubes.push([x, 0.01, z]);
-        }
+      }
+      if (!exists) {
+        cubes.push([x, 0.01, z]);
       }
     }
   });
   window.addEventListener("mousemove", e => {
-    if (view !== 'move' || !document.pointerLockElement) {
+    if (!document.pointerLockElement) {
       return;
     }
 
@@ -498,89 +468,71 @@ function main() {
     let rightNormalized = cross(upNormalized, cameraDirectionOppositeNormalized);
 
     // Update
-    if (view === 'move') {
-      if (keysDown.has('KeyW')) {
-        cameraPosition = diff(cameraPosition, scale(cameraDirectionOppositeNormalized, 0.1));
-      }
-      if (keysDown.has('KeyA')) {
-        cameraPosition = diff(cameraPosition, scale(rightNormalized, 0.1));
-      }
-      if (keysDown.has('KeyS')) {
-        cameraPosition = add(cameraPosition, scale(cameraDirectionOppositeNormalized, 0.1));
-      }
-      if (keysDown.has('KeyD')) {
-        cameraPosition = add(cameraPosition, scale(rightNormalized, 0.1));
-      }
+    let direction: [number, number, number] = [0, 0, 0];
+
+    // TODO: Add option to switch between these?
+    // Earlier version
+    // if (keysDown.has('KeyW')) {
+    //   direction = diff(direction, cameraDirectionOppositeNormalized);
+    // }
+    // if (keysDown.has('KeyA')) {
+    //   direction = diff(direction, rightNormalized);
+    // }
+    // if (keysDown.has('KeyS')) {
+    //   direction = add(direction, cameraDirectionOppositeNormalized);
+    // }
+    // if (keysDown.has('KeyD')) {
+    //   direction = add(direction, rightNormalized);
+    // }
+
+    if (keysDown.has('KeyW')) {
+      direction = add(direction, [
+        Math.sin(cameraDirectionAngles[0]),
+        0.0,
+        Math.cos(cameraDirectionAngles[0])
+      ]);
+    }
+    if (keysDown.has('KeyA')) {
+      direction = diff(direction, rightNormalized);
+    }
+    if (keysDown.has('KeyS')) {
+      direction = add(direction, [
+        -Math.sin(cameraDirectionAngles[0]),
+        -0.0,
+        -Math.cos(cameraDirectionAngles[0])
+      ]);
+    }
+    if (keysDown.has('KeyD')) {
+      direction = add(direction, rightNormalized);
+    }
+    if (keysDown.has('KeyQ')) {
+      direction = add(direction, [0, -1, 0]);
+    }
+    if (keysDown.has('KeyE')) {
+      direction = add(direction, [0, 1, 0]);
+    }
+
+    if (magnitude(direction) > 1e-6) {
+      direction = normalize(direction);
+      cameraPosition = add(cameraPosition, scale(direction, 0.1));
     }
 
     // Draw
     let triangles = plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], 200.0, [1.0, 1.0, 1.0, 0.2]);
 
-    if (view === 'edit') {
-      const mouseDirectionCameraCoordinates = [
-        (mousePosition[0] - gl!.canvas.width / 2),
-        (gl!.canvas.height / 2 -mousePosition[1]),
-        -(gl!.canvas.width / 2) / Math.tan(fov / 2),
-      ];
+    // Ray from camera center to mouse, in world coordinates.
+    const cameraDirection: [number, number, number] = [
+      Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
+      Math.sin(cameraDirectionAngles[1]),
+      Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
+    ];;
 
-      // Ray from camera center to mouse, in world coordinates.
-      const mouseDirection = normalize(add(
-        scale(rightNormalized, mouseDirectionCameraCoordinates[0]),
-        add(
-          scale(upNormalized, mouseDirectionCameraCoordinates[1]),
-          scale(cameraDirectionOppositeNormalized, mouseDirectionCameraCoordinates[2])
-        )
-      ));
-
-      const tXZPlane = -cameraPosition[1] / mouseDirection[1];
-      let tmin = Infinity;
-      if (tXZPlane > 0) {
-        tmin = tXZPlane;
-      }
-      let center: null | [number, number, number] = null;
-      let normal: null | [number, number, number] = null;
-      
-      for (const cube of cubes) {
-        for (let i = 0; i < 3; i++) {
-          for (let j = -1; j <= 1; j += 2) {
-            let t = (cube[i] + 0.5 + 0.5 * j - cameraPosition[i]) / mouseDirection[i];
-            let mousePoint = add(cameraPosition, scale(mouseDirection, t));
-            let onCube = true;
-            for (let k = 0; k < 3; k++) {
-              if (i !== k && !(cube[k] <= mousePoint[k] && mousePoint[k] <= cube[k] + 1)) {
-                onCube = false;
-              }
-            }
-
-            if (t > 0 && t < tmin && onCube) {
-              tmin = t;
-              center = [cube[0] + 0.5, cube[1] + 0.5, cube[2] + 0.5];
-              center[i] += j * 0.51;
-              normal = [0, 0, 0];
-              normal[i] = j;
-            }
-          }
-        }
-      }
-
-      if (center && normal) {
-        triangles.push(...plane(center, normal, 1, [0, 0, 0, 1]));
-      } else if (tXZPlane > 0) {
-        const mouseXZPlanePoint = add(cameraPosition, scale(mouseDirection, tXZPlane));
-        const x = Math.floor(mouseXZPlanePoint[0]);
-        const z = Math.floor(mouseXZPlanePoint[2]);
-        let exists = false;
-        for (const cube of cubes) {
-          if (cube[0] === x && cube[2] === z) {
-            exists = true;
-            break;
-          }
-        }
-        if (!exists) {
-          triangles.push(...plane([x + 0.5, 0.01, z + 0.5], [0, 1, 0], 1, [0, 0, 0, 1]));
-        }
-      }
-    }
+    triangles.push(...plane(
+      add(cameraPosition, scale(cameraDirection, 2 * near)),
+      cameraDirection,
+      10 * 2 * (2 * near * Math.tan(fov / 2)) / gl!.canvas.width,
+      [0.0, 0.0, 0.0, 1.0]
+    ));
 
     for (const cube of cubes) {
       triangles.push(...axisAlignedBox(cube, [1.0, 1.0, 1.0], [1.0, 0.0, 0.0, 1.0]));
@@ -634,7 +586,7 @@ function main() {
       frameCount = 0;
       const currTime = Date.now();
       // TODO: Move the view into a different span?
-      fpsSpan.innerText = `FPS: ${Math.round(FRAME_COUNT_FOR_FPS * 1000 / (currTime - lastTime))} | View: ${view}`;
+      fpsSpan.innerText = `FPS: ${Math.round(FRAME_COUNT_FOR_FPS * 1000 / (currTime - lastTime))}`;
       lastTime = currTime;
     }
     requestAnimationFrame(updateAndDraw);
