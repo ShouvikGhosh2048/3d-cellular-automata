@@ -452,11 +452,15 @@ function main() {
     }
 
     // Update
-    cameraDirectionAngles[0] -= 0.0005 * e.movementX;
-    cameraDirectionAngles[1] -= 0.0005 * e.movementY;
+    // TODO: Games like GTAV and Doom use slower mouse?
+    // https://www.reddit.com/r/pcgaming/comments/12atizm/comment/jeusa9b/
+    // Create menu to try different values.
+    cameraDirectionAngles[0] -= 0.0003 * e.movementX;
+    cameraDirectionAngles[1] -= 0.0003 * e.movementY;
     cameraDirectionAngles[1] = clamp(cameraDirectionAngles[1], - Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
   });
 
+  let lastFrame = Date.now();
   function updateAndDraw() {
     let cameraDirectionOppositeNormalized: [number, number, number] = [
       -Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
@@ -514,8 +518,9 @@ function main() {
 
     if (magnitude(direction) > 1e-6) {
       direction = normalize(direction);
-      cameraPosition = add(cameraPosition, scale(direction, 0.1));
+      cameraPosition = add(cameraPosition, scale(direction, 0.1 * (Date.now() - lastFrame) / 16.66));
     }
+    lastFrame = Date.now();
 
     // Draw
     let triangles = plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], 200.0, [1.0, 1.0, 1.0, 0.2]);
