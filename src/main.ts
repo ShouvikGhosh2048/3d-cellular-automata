@@ -60,63 +60,6 @@ function matrixMultiply(a: number[], b: number[]) {
   return res;
 }
 
-function matrixInverse(a: number[]) {
-  const aCopy = [...a];
-  const res = new Array(16).fill(0);
-  res[0] = res[5] = res[10] = res[15] = 1;
-
-  for (let i = 0; i < 4; i++) {
-    if (Math.abs(aCopy[4 * i + i]) < 1e-6) {
-      let found = null;
-      for (let j = i + 1; j < 4; j++) {
-        if (Math.abs(aCopy[4 * j + i]) > 1e-6) {
-          found = j;
-          break;
-        }
-      }
-      if (found === null) {
-        return new Array(16).fill(0);
-      }
-
-      for (let j = 0; j < 4; j++) {
-        let temp = aCopy[4 * i + j];
-        aCopy[4 * i + j] = aCopy[4 * found + j];
-        aCopy[4 * found + j] = temp;
-
-        temp = res[4 * i + j];
-        res[4 * i + j] = res[4 * found + j];
-        res[4 * found + j] = temp;
-      }
-    }
-
-    const val = aCopy[4 * i + i];
-    for (let j = 0; j < 4; j++) {
-      aCopy[4 * i + j] /= val;
-      res[4 * i + j] /= val;
-    }
-
-    for (let j = i + 1; j < 4; j++) {
-      const val = aCopy[4 * j + i];
-      for (let k = 0; k < 4; k++) {
-        aCopy[4 * j + k] -= val * aCopy[4 * i + k];
-        res[4 * j + k] -= val * res[4 * i + k];
-      }
-    }
-  }
-
-  for (let i = 3; i >= 0; i--) {
-    for (let j = i-1; j >= 0; j--) {
-      const val = aCopy[4 * j + i];
-      for (let k = 0; k < 4; k++) {
-        aCopy[4 * j + k] -= val * aCopy[4 * i + k];
-        res[4 * j + k] -= val * res[4 * i + k];
-      }
-    }
-  }
-
-  return res;
-}
-
 function clamp(x: number, min: number, max: number) {
   if (x < min) {
     return min;
@@ -370,7 +313,7 @@ function main() {
   window.addEventListener("mousemove", e => {
     mousePosition = [e.clientX, e.clientY];
   });
-  canvas.addEventListener("mousedown", () => {
+  canvas.addEventListener("mousedown", e => {
     if (!document.pointerLockElement) {
       return;
     }
@@ -390,8 +333,11 @@ function main() {
     }
     let center: null | [number, number, number] = null;
     let normal: null | [number, number, number] = null;
+    let cubeIndex: null | number = null;
     
-    for (const cube of cubes) {
+    for (let c = 0; c < cubes.length; c++) {
+      const cube = cubes[c];
+
       for (let i = 0; i < 3; i++) {
         for (let j = -1; j <= 1; j += 2) {
           let t = (cube[i] + 0.5 + 0.5 * j - cameraPosition[i]) / cameraDirection[i];
@@ -409,40 +355,47 @@ function main() {
             center[i] += j * 0.51;
             normal = [0, 0, 0];
             normal[i] = j;
+            cubeIndex = c;
           }
         }
       }
     }
 
-    if (center && normal) {
-      const position = add(diff(center, [0.5, 0.5, 0.5]), scale(normal, 0.49));
-      const x = Math.round(position[0]);
-      const y = Math.round(position[1]);
-      const z = Math.round(position[2]);
-
-      let exists = false;
-      for (const cube of cubes) {
-        if (cube[0] === x && cube[1] === y && cube[2] === z) {
-          exists = true;
-          break;
+    if (e.button === 0) {
+      if (center && normal) {
+        const position = add(diff(center, [0.5, 0.5, 0.5]), scale(normal, 0.49));
+        const x = Math.round(position[0]);
+        const y = Math.round(position[1]);
+        const z = Math.round(position[2]);
+  
+        let exists = false;
+        for (const cube of cubes) {
+          if (cube[0] === x && cube[1] === y && cube[2] === z) {
+            exists = true;
+            break;
+          }
+        }
+        if (!exists) {
+          cubes.push([x, y + 0.01, z]);
+        }
+      } else if (tXZPlane > 0) {
+        const mouseXZPlanePoint = add(cameraPosition, scale(cameraDirection, tXZPlane));
+        const x = Math.floor(mouseXZPlanePoint[0]);
+        const z = Math.floor(mouseXZPlanePoint[2]);
+        let exists = false;
+        for (const cube of cubes) {
+          if (cube[0] === x && cube[2] === z) {
+            exists = true;
+            break;
+          }
+        }
+        if (!exists) {
+          cubes.push([x, 0.01, z]);
         }
       }
-      if (!exists) {
-        cubes.push([x, y + 0.01, z]);
-      }
-    } else if (tXZPlane > 0) {
-      const mouseXZPlanePoint = add(cameraPosition, scale(cameraDirection, tXZPlane));
-      const x = Math.floor(mouseXZPlanePoint[0]);
-      const z = Math.floor(mouseXZPlanePoint[2]);
-      let exists = false;
-      for (const cube of cubes) {
-        if (cube[0] === x && cube[2] === z) {
-          exists = true;
-          break;
-        }
-      }
-      if (!exists) {
-        cubes.push([x, 0.01, z]);
+    } else if (e.button === 2) {
+      if (cubeIndex !== null) {
+        cubes.splice(cubeIndex, 1);
       }
     }
   });
@@ -454,6 +407,8 @@ function main() {
     // Update
     // TODO: Games like GTAV and Doom use slower mouse?
     // https://www.reddit.com/r/pcgaming/comments/12atizm/comment/jeusa9b/
+    // https://github.com/mrdoob/three.js/blob/master/examples/games_fps.html and ThreeJS FPS controls
+    // ThreeJS seems to use a faster mouse?
     // Create menu to try different values.
     cameraDirectionAngles[0] -= 0.0003 * e.movementX;
     cameraDirectionAngles[1] -= 0.0003 * e.movementY;
