@@ -540,7 +540,11 @@ function main() {
     ));
 
     for (const cube of cubes) {
-      triangles.push(...axisAlignedBox(cube, [1.0, 1.0, 1.0], [1.0, 0.0, 0.0, 1.0]));
+      const color: [number, number, number, number] = [1.0, 0.0, 0.0, 1.0];
+      color[0] = 0.85 + 0.15 * Math.sin(cube[0] / 3);
+      color[1] = 0.85 - 0.15 * Math.sin(cube[1] / 5);
+      color[2] = 0.85 + 0.15 * Math.sin(cube[2] / 7);
+      triangles.push(...axisAlignedBox(cube, [1.0, 1.0, 1.0], color));
     }
     if (triangles.length > 10 * VERTEX_LIMIT) {
       triangles = triangles.slice(0, 10 * VERTEX_LIMIT);
