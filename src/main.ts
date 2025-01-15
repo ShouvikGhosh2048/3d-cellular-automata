@@ -170,6 +170,35 @@ function plane(
   ];
 }
 
+function parseValues(valuesString: string, min: number, max: number) {
+  const values = new Set<number>();
+
+  let currNumber = null;
+  for (let i = 0; i < valuesString.length; i++) {
+    if ('0123456789'.includes(valuesString[i])) {
+      if (currNumber === null) {
+        currNumber = Number(valuesString[i]);
+      } else {
+        currNumber = 10 * currNumber + Number(valuesString[i]);
+      }
+    } else if (valuesString[i] === ',') {
+      if (currNumber === null) { return null; }
+      if (currNumber < min || currNumber > max) { return null; }
+      values.add(currNumber);
+      currNumber = null;
+    } else {
+      return null;
+    }
+  }
+  if (currNumber === null && values.size > 0) { return null; }
+  if (currNumber !== null) {
+    if (currNumber < min || currNumber > max) { return null; }
+    values.add(currNumber);
+  }
+
+  return values;
+}
+
 function main() {
   const canvas = document.querySelector('canvas');
   if (!canvas) { return; }
@@ -179,6 +208,30 @@ function main() {
 
   const fpsSpan = document.querySelector<HTMLSpanElement>('#fps')!;
   if (!fpsSpan) { return; }
+
+  const ruleInput = document.querySelector<HTMLInputElement>('#rule');
+  if (!ruleInput) { return; }
+  let rule: [Set<number>, Set<number>] = [new Set(), new Set()];
+  ruleInput.addEventListener('input', e => {
+    let ruleText = (e.target! as HTMLInputElement).value;
+
+    let validRule = false;
+    const parts = ruleText.split('/');
+    if (parts.length === 2) {
+      const survival = parseValues(parts[0], 0, 26);
+      const birth = parseValues(parts[1], 1, 26);
+      if (survival && birth) {
+        validRule = true;
+        rule = [survival, birth];
+      }
+    }
+
+    if (validRule) {
+      ruleInput.style.backgroundColor = "rgb(230, 230, 230)";
+    } else {
+      ruleInput.style.backgroundColor = "rgb(255, 230, 230)";
+    }
+  });
 
   window.addEventListener('resize', () => {
     canvas.width = Math.floor(window.innerWidth);
@@ -254,18 +307,30 @@ function main() {
     return;
   }
 
-  const cubes: [number, number, number][] = [[0, 0.01, 0]];
+  let cubes: [number, number, number][] = [[0, 0, 0]];
   const VERTEX_LIMIT = 10000 * 3;
   const buffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   gl.bufferData(gl.ARRAY_BUFFER, 4 * 10 * VERTEX_LIMIT, gl.DYNAMIC_DRAW);
 
-  const triangles = plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], 200.0, [1.0, 1.0, 1.0, 0.2]);
+  const planeTriangles = [
+    ...plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], 20.0, [1.0, 1.0, 1.0, 0.2]),
+  ];
+
+  let triangles = [];
   for (const cube of cubes) {
-    triangles.push(...axisAlignedBox(cube, [1.0, 1.0, 1.0], [1.0, 0.0, 0.0, 1.0]));
+    const color: [number, number, number, number] = [1.0, 0.0, 0.0, 1.0];
+    color[0] = 0.85 + 0.15 * Math.sin(cube[0] / 3);
+    color[1] = 0.85 - 0.15 * Math.sin(cube[1] / 5);
+    color[2] = 0.85 + 0.15 * Math.sin(cube[2] / 7);
+    triangles.push(...axisAlignedBox(cube, [1.0, 1.0, 1.0], color));
   }
-  let triangleCount = triangles.length / 10;
-  gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array(triangles));
+  if (triangles.length > 10 * VERTEX_LIMIT - planeTriangles.length) {
+    triangles = triangles.slice(0, 10 * VERTEX_LIMIT - planeTriangles.length);
+  }
+  triangles.push(...planeTriangles);
+  let vertexCount = triangles.length / 10;
+  gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Float32Array(triangles));
 
   const vao = gl.createVertexArray();
   gl.bindVertexArray(vao);
@@ -284,8 +349,8 @@ function main() {
   let frameCount = 0;
   const FRAME_COUNT_FOR_FPS = 60;
 
-  let cameraPosition: [number, number, number] = [0, 10, 10];
-  let cameraDirectionAngles = [Math.PI, -Math.PI / 4]; // [angle-in-xz-from-z, angle-from-xz]
+  let cameraPosition: [number, number, number] = [0, 10, 50];
+  let cameraDirectionAngles = [Math.PI, -Math.atan(cameraPosition[1] / cameraPosition[2])]; // [angle-in-xz-from-z, angle-from-xz]
   let cameraUp: [number, number, number] = [0, 1, 0];
   // Prevent this: https://www.reddit.com/r/Unity3D/comments/s66qvs/whats_causing_this_strange_texture_flickering_in
   // Near and far bounds based on Raylib
@@ -298,6 +363,93 @@ function main() {
   const keysDown = new Set<string>();
   window.addEventListener('keydown', (e) => {
     keysDown.add(e.code);
+
+    if (document.pointerLockElement) {
+      if (e.code === 'KeyN') {
+        const cubesSet = new Set<string>();
+        for (const cube of cubes) {
+          cubesSet.add(JSON.stringify(cube));
+        }
+
+        const newCubes = new Set<string>();
+
+        // Survival
+        for (const cube of cubes) {
+          let neighbourCount = 0;
+          for (let i = -1; i <= 1; i++) {
+            for (let j = -1; j <= 1; j++) {
+              for (let k = -1; k <= 1; k++) {
+                if (i === 0 && j === 0 && k === 0) { continue; }
+
+                const neighbourPosition = [cube[0] + i, cube[1] + j, cube[2] + k];
+                if (cubesSet.has(JSON.stringify(neighbourPosition))) {
+                  neighbourCount += 1;
+                }
+              }
+            }
+          }
+          if (rule[0].has(neighbourCount)
+            && -10 <= cube[0] && cube[0] < 10
+            && -10 <= cube[1] && cube[1] < 10
+            && -10 <= cube[2] && cube[2] < 10
+          ) {
+            newCubes.add(JSON.stringify(cube));
+          }
+        }
+
+        // Birth
+        for (const cube of cubes) {
+          for (let i = -1; i <= 1; i++) {
+            for (let j = -1; j <= 1; j++) {
+              for (let k = -1; k <= 1; k++) {
+                const position = [cube[0] + i, cube[1] + j, cube[2] + k];
+                if (cubesSet.has(JSON.stringify(position))) { continue; }
+
+                let neighbourCount = 0;
+                for (let i = -1; i <= 1; i++) {
+                  for (let j = -1; j <= 1; j++) {
+                    for (let k = -1; k <= 1; k++) {
+                      if (i === 0 && j === 0 && k === 0) { continue; }
+                      const neighbourPosition = [position[0] + i, position[1] + j, position[2] + k];
+                      if (cubesSet.has(JSON.stringify(neighbourPosition))) {
+                        neighbourCount += 1;
+                      }
+                    }
+                  }
+                }
+                if (rule[1].has(neighbourCount)
+                  && -10 <= position[0] && position[0] < 10
+                  && -10 <= position[1] && position[1] < 10
+                  && -10 <= position[2] && position[2] < 10
+                ) {
+                  newCubes.add(JSON.stringify(position));
+                }
+              }
+            }
+          }
+        }
+
+        cubes = [];
+        for (const newCube of newCubes) {
+          cubes.push(JSON.parse(newCube));
+        }
+
+        let triangles = [];
+        for (const cube of cubes) {
+          const color: [number, number, number, number] = [1.0, 0.0, 0.0, 1.0];
+          color[0] = 0.85 + 0.15 * Math.sin(cube[0] / 3);
+          color[1] = 0.85 - 0.15 * Math.sin(cube[1] / 5);
+          color[2] = 0.85 + 0.15 * Math.sin(cube[2] / 7);
+          triangles.push(...axisAlignedBox(cube, [1.0, 1.0, 1.0], color));
+        }
+        if (triangles.length > 10 * VERTEX_LIMIT - planeTriangles.length) {
+          triangles = triangles.slice(0, 10 * VERTEX_LIMIT - planeTriangles.length);
+        }
+        triangles.push(...planeTriangles);
+        vertexCount = triangles.length / 10;
+        gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Float32Array(triangles));
+      }
+    }
   });
   window.addEventListener('keyup', (e) => {
     keysDown.delete(e.code);
@@ -375,8 +527,12 @@ function main() {
             break;
           }
         }
-        if (!exists) {
-          cubes.push([x, y + 0.01, z]);
+        if (!exists
+          && -10 <= x && x < 10
+          && -10 <= y && y < 10
+          && -10 <= z && z < 10
+        ) {
+          cubes.push([x, y, z]);
         }
       } else if (tXZPlane > 0) {
         const mouseXZPlanePoint = add(cameraPosition, scale(cameraDirection, tXZPlane));
@@ -389,8 +545,11 @@ function main() {
             break;
           }
         }
-        if (!exists) {
-          cubes.push([x, 0.01, z]);
+        if (!exists
+          && -10 <= x && x < 10
+          && -10 <= z && z < 10
+        ) {
+          cubes.push([x, 0, z]);
         }
       }
     } else if (e.button === 2) {
@@ -398,6 +557,21 @@ function main() {
         cubes.splice(cubeIndex, 1);
       }
     }
+
+    let triangles = [];
+    for (const cube of cubes) {
+      const color: [number, number, number, number] = [1.0, 0.0, 0.0, 1.0];
+      color[0] = 0.85 + 0.15 * Math.sin(cube[0] / 3);
+      color[1] = 0.85 - 0.15 * Math.sin(cube[1] / 5);
+      color[2] = 0.85 + 0.15 * Math.sin(cube[2] / 7);
+      triangles.push(...axisAlignedBox(cube, [1.0, 1.0, 1.0], color));
+    }
+    if (triangles.length > 10 * VERTEX_LIMIT - planeTriangles.length) {
+      triangles = triangles.slice(0, 10 * VERTEX_LIMIT - planeTriangles.length);
+    }
+    triangles.push(...planeTriangles);
+    vertexCount = triangles.length / 10;
+    gl!.bufferSubData(gl!.ARRAY_BUFFER, 0, new Float32Array(triangles));
   });
   window.addEventListener("mousemove", e => {
     if (!document.pointerLockElement) {
@@ -427,85 +601,42 @@ function main() {
     let rightNormalized = cross(upNormalized, cameraDirectionOppositeNormalized);
 
     // Update
-    let direction: [number, number, number] = [0, 0, 0];
+    if (document.pointerLockElement) {
+      let direction: [number, number, number] = [0, 0, 0];
 
-    // TODO: Add option to switch between these?
-    // Earlier version
-    // if (keysDown.has('KeyW')) {
-    //   direction = diff(direction, cameraDirectionOppositeNormalized);
-    // }
-    // if (keysDown.has('KeyA')) {
-    //   direction = diff(direction, rightNormalized);
-    // }
-    // if (keysDown.has('KeyS')) {
-    //   direction = add(direction, cameraDirectionOppositeNormalized);
-    // }
-    // if (keysDown.has('KeyD')) {
-    //   direction = add(direction, rightNormalized);
-    // }
-
-    if (keysDown.has('KeyW')) {
-      direction = add(direction, [
-        Math.sin(cameraDirectionAngles[0]),
-        0.0,
-        Math.cos(cameraDirectionAngles[0])
-      ]);
-    }
-    if (keysDown.has('KeyA')) {
-      direction = diff(direction, rightNormalized);
-    }
-    if (keysDown.has('KeyS')) {
-      direction = add(direction, [
-        -Math.sin(cameraDirectionAngles[0]),
-        -0.0,
-        -Math.cos(cameraDirectionAngles[0])
-      ]);
-    }
-    if (keysDown.has('KeyD')) {
-      direction = add(direction, rightNormalized);
-    }
-    if (keysDown.has('KeyQ')) {
-      direction = add(direction, [0, -1, 0]);
-    }
-    if (keysDown.has('KeyE')) {
-      direction = add(direction, [0, 1, 0]);
-    }
-
-    if (magnitude(direction) > 1e-6) {
-      direction = normalize(direction);
-      cameraPosition = add(cameraPosition, scale(direction, 0.1 * (Date.now() - lastFrame) / 16.66));
+      if (keysDown.has('KeyW')) {
+        direction = add(direction, [
+          Math.sin(cameraDirectionAngles[0]),
+          0.0,
+          Math.cos(cameraDirectionAngles[0])
+        ]);
+      }
+      if (keysDown.has('KeyA')) {
+        direction = diff(direction, rightNormalized);
+      }
+      if (keysDown.has('KeyS')) {
+        direction = add(direction, [
+          -Math.sin(cameraDirectionAngles[0]),
+          -0.0,
+          -Math.cos(cameraDirectionAngles[0])
+        ]);
+      }
+      if (keysDown.has('KeyD')) {
+        direction = add(direction, rightNormalized);
+      }
+      if (keysDown.has('KeyQ')) {
+        direction = add(direction, [0, -1, 0]);
+      }
+      if (keysDown.has('KeyE')) {
+        direction = add(direction, [0, 1, 0]);
+      }
+  
+      if (magnitude(direction) > 1e-6) {
+        direction = normalize(direction);
+        cameraPosition = add(cameraPosition, scale(direction, 0.1 * (Date.now() - lastFrame) / 16.66));
+      }
     }
     lastFrame = Date.now();
-
-    // Draw
-    let triangles = plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], 200.0, [1.0, 1.0, 1.0, 0.2]);
-
-    // Ray from camera center to mouse, in world coordinates.
-    const cameraDirection: [number, number, number] = [
-      Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
-      Math.sin(cameraDirectionAngles[1]),
-      Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
-    ];;
-
-    triangles.push(...plane(
-      add(cameraPosition, scale(cameraDirection, 2 * near)),
-      cameraDirection,
-      10 * 2 * (2 * near * Math.tan(fov / 2)) / gl!.canvas.width,
-      [0.0, 0.0, 0.0, 1.0]
-    ));
-
-    for (const cube of cubes) {
-      const color: [number, number, number, number] = [1.0, 0.0, 0.0, 1.0];
-      color[0] = 0.85 + 0.15 * Math.sin(cube[0] / 3);
-      color[1] = 0.85 - 0.15 * Math.sin(cube[1] / 5);
-      color[2] = 0.85 + 0.15 * Math.sin(cube[2] / 7);
-      triangles.push(...axisAlignedBox(cube, [1.0, 1.0, 1.0], color));
-    }
-    if (triangles.length > 10 * VERTEX_LIMIT) {
-      triangles = triangles.slice(0, 10 * VERTEX_LIMIT);
-    }
-    triangleCount = triangles.length / 10;
-    gl!.bufferSubData(gl!.ARRAY_BUFFER, 0, new Float32Array(triangles));
   
     const cameraPositionShift = new Array(16).fill(0);
     cameraPositionShift[0] = cameraPositionShift[5] = cameraPositionShift[10] = cameraPositionShift[15] = 1;
@@ -543,7 +674,7 @@ function main() {
       worldToClip[2], worldToClip[6], worldToClip[10], worldToClip[14],
       worldToClip[3], worldToClip[7], worldToClip[11], worldToClip[15],
     ]);
-    gl!.drawArrays(gl!.TRIANGLES, 0, triangleCount);
+    gl!.drawArrays(gl!.TRIANGLES, 0, vertexCount);
 
     frameCount += 1;
     if (frameCount === FRAME_COUNT_FOR_FPS) {
