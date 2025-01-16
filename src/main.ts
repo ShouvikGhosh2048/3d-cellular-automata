@@ -255,17 +255,22 @@ function main() {
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
   const vertexShaderSource = `#version 300 es
-    in vec3 position;
-    in vec4 inColor;
+    // https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/vertexAttribPointer#integer_attributes
+    in vec3 globalPosition;
+    in vec3 localPosition;
     in vec3 normal;
     out vec4 outColor;
     uniform mat4 worldToClip;
   
     void main() {
       // I work with right handed, and convert it in the shader.
-      vec4 clipPosition = worldToClip * vec4(position, 1);
+      vec4 clipPosition = worldToClip * vec4(globalPosition + localPosition, 1);
       clipPosition.z = -clipPosition.z;
       gl_Position = clipPosition;
+      vec4 inColor = vec4(0.0, 0.0, 0.0, 1.0);
+      inColor.r = 0.85 + 0.15 * sin(globalPosition.x / 3.0);
+      inColor.g = 0.85 - 0.15 * sin(globalPosition.y / 5.0);
+      inColor.b = 0.85 + 0.15 * sin(globalPosition.z / 7.0);
       outColor = vec4(inColor.rgb * (2.0 + dot(vec3(0.3, 0.5, 1), normal)) / 3.0, inColor.a);
     }
   `;
@@ -308,41 +313,98 @@ function main() {
   }
 
   let cubes: [number, number, number][] = [[0, 0, 0]];
-  const VERTEX_LIMIT = 10000 * 3;
-  const buffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  gl.bufferData(gl.ARRAY_BUFFER, 4 * 10 * VERTEX_LIMIT, gl.DYNAMIC_DRAW);
+  const CUBE_LIMIT = 8000;
 
-  const planeTriangles = [
-    ...plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], 20.0, [1.0, 1.0, 1.0, 0.2]),
-  ];
-
-  let triangles = [];
-  for (const cube of cubes) {
-    const color: [number, number, number, number] = [1.0, 0.0, 0.0, 1.0];
-    color[0] = 0.85 + 0.15 * Math.sin(cube[0] / 3);
-    color[1] = 0.85 - 0.15 * Math.sin(cube[1] / 5);
-    color[2] = 0.85 + 0.15 * Math.sin(cube[2] / 7);
-    triangles.push(...axisAlignedBox(cube, [1.0, 1.0, 1.0], color));
-  }
-  if (triangles.length > 10 * VERTEX_LIMIT - planeTriangles.length) {
-    triangles = triangles.slice(0, 10 * VERTEX_LIMIT - planeTriangles.length);
-  }
-  triangles.push(...planeTriangles);
-  let vertexCount = triangles.length / 10;
-  gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Float32Array(triangles));
+  // const planeTriangles = [
+  //   ...plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], 20.0, [1.0, 1.0, 1.0, 0.2]),
+  // ];
 
   const vao = gl.createVertexArray();
   gl.bindVertexArray(vao);
-  const positionLocation = gl.getAttribLocation(program, 'position');
-  gl.enableVertexAttribArray(positionLocation);
-  gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 10 * 4, 0);
-  const inColorLocation = gl.getAttribLocation(program, 'inColor');
-  gl.enableVertexAttribArray(inColorLocation);
-  gl.vertexAttribPointer(inColorLocation, 4, gl.FLOAT, false, 10 * 4, 3 * 4);
+
+  const singleCubeBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, singleCubeBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(
+    [
+      // Back
+      0, 0, 0, 0, 0, -1,
+      0, 1, 0, 0, 0, -1,
+      1, 0, 0, 0, 0, -1,
+      1, 0, 0, 0, 0, -1,
+      0, 1, 0, 0, 0, -1,
+      1, 1, 0, 0, 0, -1,
+  
+      // Front
+      0, 0, 1, 0, 0, 1,
+      1, 0, 1, 0, 0, 1,
+      0, 1, 1, 0, 0, 1,
+      1, 0, 1, 0, 0, 1,
+      1, 1, 1, 0, 0, 1,
+      0, 1, 1, 0, 0, 1,
+  
+      // Left
+      0, 0, 0, -1, 0, 0,
+      0, 0, 1, -1, 0, 0,
+      0, 1, 0, -1, 0, 0,
+      0, 1, 0, -1, 0, 0,
+      0, 0, 1, -1, 0, 0,
+      0, 1, 1, -1, 0, 0,
+  
+      // Right
+      1, 0, 0, 1, 0, 0,
+      1, 1, 0, 1, 0, 0,
+      1, 0, 1, 1, 0, 0,
+      1, 1, 0, 1, 0, 0,
+      1, 1, 1, 1, 0, 0,
+      1, 0, 1, 1, 0, 0,
+  
+      // Bottom
+      0, 0, 0, 0, 1, 0,
+      1, 0, 0, 0, 1, 0,
+      0, 0, 1, 0, 1, 0,
+      0, 0, 1, 0, 1, 0,
+      1, 0, 0, 0, 1, 0,
+      1, 0, 1, 0, 1, 0,
+  
+      // Top
+      0, 1, 0, 0, 1, 0,
+      0, 1, 1, 0, 1, 0,
+      1, 1, 0, 0, 1, 0,
+      0, 1, 1, 0, 1, 0,
+      1, 1, 1, 0, 1, 0,
+      1, 1, 0, 0, 1, 0,
+    ]
+  ),
+  gl.STATIC_DRAW);
+
+  const localPositionLocation = gl.getAttribLocation(program, 'localPosition');
+  gl.enableVertexAttribArray(localPositionLocation);
+  gl.vertexAttribPointer(localPositionLocation, 3, gl.FLOAT, false, 6 * 4, 0);
   const normalLocation = gl.getAttribLocation(program, "normal");
   gl.enableVertexAttribArray(normalLocation);
-  gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 10 * 4, 7 * 4);
+  gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 6 * 4, 3 * 4);
+
+  const cubesDataBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, cubesDataBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, 3 * CUBE_LIMIT, gl.DYNAMIC_DRAW);
+
+  const globalPositionLocation = gl.getAttribLocation(program, 'globalPosition');
+  gl.enableVertexAttribArray(globalPositionLocation);
+  // https://www.khronos.org/opengl/wiki/Data_Type_(GLSL)#Vectors
+  // https://stackoverflow.com/questions/42741233/unsigned-byte-in-glsl
+  gl.vertexAttribPointer(globalPositionLocation, 3, gl.BYTE, false, 0, 0);
+  // https://webgl2fundamentals.org/webgl/lessons/webgl-instanced-drawing.html
+  gl.vertexAttribDivisor(globalPositionLocation, 1);
+
+  let cubesData = [];
+  for (const cube of cubes) {
+    cubesData.push(...cube);
+  }
+  if (cubesData.length > 3 * CUBE_LIMIT) {
+    cubesData = cubesData.slice(0, 3 * CUBE_LIMIT);
+  }
+  gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Int8Array(cubesData));
+
   const worldToClipLocation = gl.getUniformLocation(program, "worldToClip");
 
   let lastTime = Date.now();
@@ -434,20 +496,14 @@ function main() {
           cubes.push(JSON.parse(newCube));
         }
 
-        let triangles = [];
+        let cubesData = [];
         for (const cube of cubes) {
-          const color: [number, number, number, number] = [1.0, 0.0, 0.0, 1.0];
-          color[0] = 0.85 + 0.15 * Math.sin(cube[0] / 3);
-          color[1] = 0.85 - 0.15 * Math.sin(cube[1] / 5);
-          color[2] = 0.85 + 0.15 * Math.sin(cube[2] / 7);
-          triangles.push(...axisAlignedBox(cube, [1.0, 1.0, 1.0], color));
+          cubesData.push(...cube);
         }
-        if (triangles.length > 10 * VERTEX_LIMIT - planeTriangles.length) {
-          triangles = triangles.slice(0, 10 * VERTEX_LIMIT - planeTriangles.length);
+        if (cubesData.length > CUBE_LIMIT * 3) {
+          cubesData = cubesData.slice(0, CUBE_LIMIT * 3);
         }
-        triangles.push(...planeTriangles);
-        vertexCount = triangles.length / 10;
-        gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Float32Array(triangles));
+        gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Int8Array(cubesData));
       }
     }
   });
@@ -558,20 +614,14 @@ function main() {
       }
     }
 
-    let triangles = [];
+    let cubesData = [];
     for (const cube of cubes) {
-      const color: [number, number, number, number] = [1.0, 0.0, 0.0, 1.0];
-      color[0] = 0.85 + 0.15 * Math.sin(cube[0] / 3);
-      color[1] = 0.85 - 0.15 * Math.sin(cube[1] / 5);
-      color[2] = 0.85 + 0.15 * Math.sin(cube[2] / 7);
-      triangles.push(...axisAlignedBox(cube, [1.0, 1.0, 1.0], color));
+      cubesData.push(...cube);
     }
-    if (triangles.length > 10 * VERTEX_LIMIT - planeTriangles.length) {
-      triangles = triangles.slice(0, 10 * VERTEX_LIMIT - planeTriangles.length);
+    if (cubesData.length > 3 * CUBE_LIMIT) {
+      cubesData = cubesData.slice(0, 3 * CUBE_LIMIT);
     }
-    triangles.push(...planeTriangles);
-    vertexCount = triangles.length / 10;
-    gl!.bufferSubData(gl!.ARRAY_BUFFER, 0, new Float32Array(triangles));
+    gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Int8Array(cubesData));
   });
   window.addEventListener("mousemove", e => {
     if (!document.pointerLockElement) {
@@ -674,7 +724,7 @@ function main() {
       worldToClip[2], worldToClip[6], worldToClip[10], worldToClip[14],
       worldToClip[3], worldToClip[7], worldToClip[11], worldToClip[15],
     ]);
-    gl!.drawArrays(gl!.TRIANGLES, 0, vertexCount);
+    gl!.drawArraysInstanced(gl!.TRIANGLES, 0, 36, cubes.length);
 
     frameCount += 1;
     if (frameCount === FRAME_COUNT_FOR_FPS) {
