@@ -312,10 +312,10 @@ function main() {
     return;
   }
 
-  let cubes: boolean[] = new Array(20 * 20 * 20).fill(false);
-  let cubesCopy: boolean[] = new Array(20 * 20 * 20).fill(false);
-  cubes[10 * 20 * 20 + 10 * 20 + 10] = true;
-  const CUBE_LIMIT = 8000;
+  const GRID_SIZE = 50; // Needs to be even
+  let cubes: boolean[] = new Array(GRID_SIZE * GRID_SIZE * GRID_SIZE).fill(false);
+  let cubesCopy: boolean[] = new Array(GRID_SIZE * GRID_SIZE * GRID_SIZE).fill(false);
+  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2] = true;
 
   // const planeTriangles = [
   //   ...plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], 20.0, [1.0, 1.0, 1.0, 0.2]),
@@ -388,7 +388,7 @@ function main() {
 
   const cubesDataBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, cubesDataBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, 3 * CUBE_LIMIT, gl.DYNAMIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, 3 * GRID_SIZE * GRID_SIZE * GRID_SIZE, gl.DYNAMIC_DRAW);
 
   const globalPositionLocation = gl.getAttribLocation(program, 'globalPosition');
   gl.enableVertexAttribArray(globalPositionLocation);
@@ -399,17 +399,14 @@ function main() {
   gl.vertexAttribDivisor(globalPositionLocation, 1);
 
   let cubesData = [];
-  for (let x = 0; x < 20; x++) {
-    for (let y = 0; y < 20; y++) {
-      for (let z = 0; z < 20; z++) {
-        if (cubes[20 * 20 * x + 20 * y + z]) {
-          cubesData.push(x - 10, y - 10, z - 10);
+  for (let x = 0; x < GRID_SIZE; x++) {
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let z = 0; z < GRID_SIZE; z++) {
+        if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
+          cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2);
         }
       }
     }
-  }
-  if (cubesData.length > 3 * CUBE_LIMIT) {
-    cubesData = cubesData.slice(0, 3 * CUBE_LIMIT);
   }
   gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Int8Array(cubesData));
 
@@ -440,32 +437,32 @@ function main() {
           cubesCopy[i] = false;
         }
 
-        for (let x = 0; x < 20; x++) {
-          for (let y = 0; y < 20; y++) {
-            for (let z = 0; z < 20; z++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+          for (let y = 0; y < GRID_SIZE; y++) {
+            for (let z = 0; z < GRID_SIZE; z++) {
               let neighbours = 0;
               for (let i = -1; i <= 1; i++) {
                 for (let j = -1; j <= 1; j++) {
                   for (let k = -1; k <= 1; k++) {
                     if (i === 0 && j === 0 && k === 0) { continue; }
-                    if (x + i < 0 || x + i >= 20
-                      || y + j < 0 || y + j >= 20
-                      || z + k < 0 || z + k >= 20
+                    if (x + i < 0 || x + i >= GRID_SIZE
+                      || y + j < 0 || y + j >= GRID_SIZE
+                      || z + k < 0 || z + k >= GRID_SIZE
                     ) { continue; }
-                    if (cubes[20 * 20 * (x + i) + 20 * (y + j) + z + k]) {
+                    if (cubes[GRID_SIZE * GRID_SIZE * (x + i) + GRID_SIZE * (y + j) + z + k]) {
                       neighbours += 1;
                     }
                   }
                 }
               }
 
-              if (cubes[20 * 20 * x + 20 * y + z]) {
+              if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
                 if (rule[0].has(neighbours)) {
-                  cubesCopy[20 * 20 * x + 20 * y + z] = true;
+                  cubesCopy[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = true;
                 }
               } else {
                 if (rule[1].has(neighbours)) {
-                  cubesCopy[20 * 20 * x + 20 * y + z] = true;
+                  cubesCopy[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = true;
                 }
               }
             }
@@ -478,19 +475,17 @@ function main() {
 
         let cubesData = [];
         let cubeCount = 0;
-        for (let x = 0; x < 20; x++) {
-          for (let y = 0; y < 20; y++) {
-            for (let z = 0; z < 20; z++) {
-              if (cubes[20 * 20 * x + 20 * y + z]) {
-                cubesData.push(x - 10, y - 10, z - 10);
+        for (let x = 0; x < GRID_SIZE; x++) {
+          for (let y = 0; y < GRID_SIZE; y++) {
+            for (let z = 0; z < GRID_SIZE; z++) {
+              if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
+                cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2);
                 cubeCount += 1;
               }
             }
           }
         }
-        if (cubesData.length > CUBE_LIMIT * 3) {
-          cubesData = cubesData.slice(0, CUBE_LIMIT * 3);
-        }
+
         gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Int8Array(cubesData));
       }
     }
@@ -531,11 +526,11 @@ function main() {
     let normal: null | [number, number, number] = null;
     let cubeIndex: null | [number, number, number] = null;
     
-    for (let x = 0; x < 20; x++) {
-      for (let y = 0; y < 20; y++) {
-        for (let z = 0; z < 20; z++) {
-          if (cubes[20 * 20 * x + 20 * y + z]) {
-            const cube = [x - 10, y - 10, z - 10];
+    for (let x = 0; x < GRID_SIZE; x++) {
+      for (let y = 0; y < GRID_SIZE; y++) {
+        for (let z = 0; z < GRID_SIZE; z++) {
+          if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
+            const cube = [x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2];
 
             for (let i = 0; i < 3; i++) {
               for (let j = -1; j <= 1; j += 2) {
@@ -570,40 +565,37 @@ function main() {
         const y = Math.round(position[1]);
         const z = Math.round(position[2]);
   
-        if (-10 <= x && x < 10
-          && -10 <= y && y < 10
-          && -10 <= z && z < 10
+        if (-GRID_SIZE / 2 <= x && x < GRID_SIZE / 2
+          && -GRID_SIZE / 2 <= y && y < GRID_SIZE / 2
+          && -GRID_SIZE / 2 <= z && z < GRID_SIZE / 2
         ) {
-          cubes[20 * 20 * (x + 10) + 20 * (y + 10) + z + 10] = true;
+          cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (y + GRID_SIZE / 2) + z + GRID_SIZE / 2] = true;
         }
       } else if (tXZPlane > 0) {
         const mouseXZPlanePoint = add(cameraPosition, scale(cameraDirection, tXZPlane));
         const x = Math.floor(mouseXZPlanePoint[0]);
         const z = Math.floor(mouseXZPlanePoint[2]);
-        if (-10 <= x && x < 10
-          && -10 <= z && z < 10
+        if (-GRID_SIZE / 2 <= x && x < GRID_SIZE / 2
+          && -GRID_SIZE / 2 <= z && z < GRID_SIZE / 2
         ) {
-          cubes[20 * 20 * (x + 10) + 20 * (0 + 10) + z + 10] = true;
+          cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (0 + GRID_SIZE / 2) + z + GRID_SIZE / 2] = true;
         }
       }
     } else if (e.button === 2) {
       if (cubeIndex !== null) {
-        cubes[20 * 20 * cubeIndex[0] + 20 * cubeIndex[1] + cubeIndex[2]] = false;
+        cubes[GRID_SIZE * GRID_SIZE * cubeIndex[0] + GRID_SIZE * cubeIndex[1] + cubeIndex[2]] = false;
       }
     }
 
     let cubesData = [];
-    for (let x = 0; x < 20; x++) {
-      for (let y = 0; y < 20; y++) {
-        for (let z = 0; z < 20; z++) {
-          if (cubes[20 * 20 * x + 20 * y + z]) {
-            cubesData.push(x - 10, y - 10, z - 10);
+    for (let x = 0; x < GRID_SIZE; x++) {
+      for (let y = 0; y < GRID_SIZE; y++) {
+        for (let z = 0; z < GRID_SIZE; z++) {
+          if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
+            cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2);
           }
         }
       }
-    }
-    if (cubesData.length > 3 * CUBE_LIMIT) {
-      cubesData = cubesData.slice(0, 3 * CUBE_LIMIT);
     }
     gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Int8Array(cubesData));
   });
