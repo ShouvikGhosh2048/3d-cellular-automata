@@ -312,7 +312,9 @@ function main() {
     return;
   }
 
-  let cubes: [number, number, number][] = [[0, 0, 0]];
+  let cubes: boolean[] = new Array(20 * 20 * 20).fill(false);
+  let cubesCopy: boolean[] = new Array(20 * 20 * 20).fill(false);
+  cubes[10 * 20 * 20 + 10 * 20 + 10] = true;
   const CUBE_LIMIT = 8000;
 
   // const planeTriangles = [
@@ -397,8 +399,14 @@ function main() {
   gl.vertexAttribDivisor(globalPositionLocation, 1);
 
   let cubesData = [];
-  for (const cube of cubes) {
-    cubesData.push(...cube);
+  for (let x = 0; x < 20; x++) {
+    for (let y = 0; y < 20; y++) {
+      for (let z = 0; z < 20; z++) {
+        if (cubes[20 * 20 * x + 20 * y + z]) {
+          cubesData.push(x - 10, y - 10, z - 10);
+        }
+      }
+    }
   }
   if (cubesData.length > 3 * CUBE_LIMIT) {
     cubesData = cubesData.slice(0, 3 * CUBE_LIMIT);
@@ -428,77 +436,57 @@ function main() {
 
     if (document.pointerLockElement) {
       if (e.code === 'KeyN') {
-        const cubesSet = new Set<string>();
-        for (const cube of cubes) {
-          cubesSet.add(JSON.stringify(cube));
+        for (let i = 0; i < cubesCopy.length; i++) {
+          cubesCopy[i] = false;
         }
 
-        const newCubes = new Set<string>();
-
-        // Survival
-        for (const cube of cubes) {
-          let neighbourCount = 0;
-          for (let i = -1; i <= 1; i++) {
-            for (let j = -1; j <= 1; j++) {
-              for (let k = -1; k <= 1; k++) {
-                if (i === 0 && j === 0 && k === 0) { continue; }
-
-                const neighbourPosition = [cube[0] + i, cube[1] + j, cube[2] + k];
-                if (cubesSet.has(JSON.stringify(neighbourPosition))) {
-                  neighbourCount += 1;
-                }
-              }
-            }
-          }
-          if (rule[0].has(neighbourCount)
-            && -10 <= cube[0] && cube[0] < 10
-            && -10 <= cube[1] && cube[1] < 10
-            && -10 <= cube[2] && cube[2] < 10
-          ) {
-            newCubes.add(JSON.stringify(cube));
-          }
-        }
-
-        // Birth
-        for (const cube of cubes) {
-          for (let i = -1; i <= 1; i++) {
-            for (let j = -1; j <= 1; j++) {
-              for (let k = -1; k <= 1; k++) {
-                const position = [cube[0] + i, cube[1] + j, cube[2] + k];
-                if (cubesSet.has(JSON.stringify(position))) { continue; }
-
-                let neighbourCount = 0;
-                for (let i = -1; i <= 1; i++) {
-                  for (let j = -1; j <= 1; j++) {
-                    for (let k = -1; k <= 1; k++) {
-                      if (i === 0 && j === 0 && k === 0) { continue; }
-                      const neighbourPosition = [position[0] + i, position[1] + j, position[2] + k];
-                      if (cubesSet.has(JSON.stringify(neighbourPosition))) {
-                        neighbourCount += 1;
-                      }
+        for (let x = 0; x < 20; x++) {
+          for (let y = 0; y < 20; y++) {
+            for (let z = 0; z < 20; z++) {
+              let neighbours = 0;
+              for (let i = -1; i <= 1; i++) {
+                for (let j = -1; j <= 1; j++) {
+                  for (let k = -1; k <= 1; k++) {
+                    if (i === 0 && j === 0 && k === 0) { continue; }
+                    if (x + i < 0 || x + i >= 20
+                      || y + j < 0 || y + j >= 20
+                      || z + k < 0 || z + k >= 20
+                    ) { continue; }
+                    if (cubes[20 * 20 * (x + i) + 20 * (y + j) + z + k]) {
+                      neighbours += 1;
                     }
                   }
                 }
-                if (rule[1].has(neighbourCount)
-                  && -10 <= position[0] && position[0] < 10
-                  && -10 <= position[1] && position[1] < 10
-                  && -10 <= position[2] && position[2] < 10
-                ) {
-                  newCubes.add(JSON.stringify(position));
+              }
+
+              if (cubes[20 * 20 * x + 20 * y + z]) {
+                if (rule[0].has(neighbours)) {
+                  cubesCopy[20 * 20 * x + 20 * y + z] = true;
+                }
+              } else {
+                if (rule[1].has(neighbours)) {
+                  cubesCopy[20 * 20 * x + 20 * y + z] = true;
                 }
               }
             }
           }
         }
 
-        cubes = [];
-        for (const newCube of newCubes) {
-          cubes.push(JSON.parse(newCube));
+        for (let i = 0; i < cubes.length; i++) {
+          cubes[i] = cubesCopy[i];
         }
 
         let cubesData = [];
-        for (const cube of cubes) {
-          cubesData.push(...cube);
+        let cubeCount = 0;
+        for (let x = 0; x < 20; x++) {
+          for (let y = 0; y < 20; y++) {
+            for (let z = 0; z < 20; z++) {
+              if (cubes[20 * 20 * x + 20 * y + z]) {
+                cubesData.push(x - 10, y - 10, z - 10);
+                cubeCount += 1;
+              }
+            }
+          }
         }
         if (cubesData.length > CUBE_LIMIT * 3) {
           cubesData = cubesData.slice(0, CUBE_LIMIT * 3);
@@ -541,29 +529,35 @@ function main() {
     }
     let center: null | [number, number, number] = null;
     let normal: null | [number, number, number] = null;
-    let cubeIndex: null | number = null;
+    let cubeIndex: null | [number, number, number] = null;
     
-    for (let c = 0; c < cubes.length; c++) {
-      const cube = cubes[c];
+    for (let x = 0; x < 20; x++) {
+      for (let y = 0; y < 20; y++) {
+        for (let z = 0; z < 20; z++) {
+          if (cubes[20 * 20 * x + 20 * y + z]) {
+            const cube = [x - 10, y - 10, z - 10];
 
-      for (let i = 0; i < 3; i++) {
-        for (let j = -1; j <= 1; j += 2) {
-          let t = (cube[i] + 0.5 + 0.5 * j - cameraPosition[i]) / cameraDirection[i];
-          let mousePoint = add(cameraPosition, scale(cameraDirection, t));
-          let onCube = true;
-          for (let k = 0; k < 3; k++) {
-            if (i !== k && !(cube[k] <= mousePoint[k] && mousePoint[k] <= cube[k] + 1)) {
-              onCube = false;
+            for (let i = 0; i < 3; i++) {
+              for (let j = -1; j <= 1; j += 2) {
+                let t = (cube[i] + 0.5 + 0.5 * j - cameraPosition[i]) / cameraDirection[i];
+                let mousePoint = add(cameraPosition, scale(cameraDirection, t));
+                let onCube = true;
+                for (let k = 0; k < 3; k++) {
+                  if (i !== k && !(cube[k] <= mousePoint[k] && mousePoint[k] <= cube[k] + 1)) {
+                    onCube = false;
+                  }
+                }
+
+                if (t > 0 && t < tmin && onCube) {
+                  tmin = t;
+                  center = [cube[0] + 0.5, cube[1] + 0.5, cube[2] + 0.5];
+                  center[i] += j * 0.51;
+                  normal = [0, 0, 0];
+                  normal[i] = j;
+                  cubeIndex = [x, y, z];
+                }
+              }
             }
-          }
-
-          if (t > 0 && t < tmin && onCube) {
-            tmin = t;
-            center = [cube[0] + 0.5, cube[1] + 0.5, cube[2] + 0.5];
-            center[i] += j * 0.51;
-            normal = [0, 0, 0];
-            normal[i] = j;
-            cubeIndex = c;
           }
         }
       }
@@ -576,47 +570,37 @@ function main() {
         const y = Math.round(position[1]);
         const z = Math.round(position[2]);
   
-        let exists = false;
-        for (const cube of cubes) {
-          if (cube[0] === x && cube[1] === y && cube[2] === z) {
-            exists = true;
-            break;
-          }
-        }
-        if (!exists
-          && -10 <= x && x < 10
+        if (-10 <= x && x < 10
           && -10 <= y && y < 10
           && -10 <= z && z < 10
         ) {
-          cubes.push([x, y, z]);
+          cubes[20 * 20 * (x + 10) + 20 * (y + 10) + z + 10] = true;
         }
       } else if (tXZPlane > 0) {
         const mouseXZPlanePoint = add(cameraPosition, scale(cameraDirection, tXZPlane));
         const x = Math.floor(mouseXZPlanePoint[0]);
         const z = Math.floor(mouseXZPlanePoint[2]);
-        let exists = false;
-        for (const cube of cubes) {
-          if (cube[0] === x && cube[2] === z) {
-            exists = true;
-            break;
-          }
-        }
-        if (!exists
-          && -10 <= x && x < 10
+        if (-10 <= x && x < 10
           && -10 <= z && z < 10
         ) {
-          cubes.push([x, 0, z]);
+          cubes[20 * 20 * (x + 10) + 20 * (0 + 10) + z + 10] = true;
         }
       }
     } else if (e.button === 2) {
       if (cubeIndex !== null) {
-        cubes.splice(cubeIndex, 1);
+        cubes[20 * 20 * cubeIndex[0] + 20 * cubeIndex[1] + cubeIndex[2]] = false;
       }
     }
 
     let cubesData = [];
-    for (const cube of cubes) {
-      cubesData.push(...cube);
+    for (let x = 0; x < 20; x++) {
+      for (let y = 0; y < 20; y++) {
+        for (let z = 0; z < 20; z++) {
+          if (cubes[20 * 20 * x + 20 * y + z]) {
+            cubesData.push(x - 10, y - 10, z - 10);
+          }
+        }
+      }
     }
     if (cubesData.length > 3 * CUBE_LIMIT) {
       cubesData = cubesData.slice(0, 3 * CUBE_LIMIT);
@@ -724,7 +708,14 @@ function main() {
       worldToClip[2], worldToClip[6], worldToClip[10], worldToClip[14],
       worldToClip[3], worldToClip[7], worldToClip[11], worldToClip[15],
     ]);
-    gl!.drawArraysInstanced(gl!.TRIANGLES, 0, 36, cubes.length);
+
+    let numberOfCubes = 0;
+    for (let i = 0; i < cubes.length; i++) {
+      if (cubes[i]) {
+        numberOfCubes += 1;
+      }
+    }
+    gl!.drawArraysInstanced(gl!.TRIANGLES, 0, 36, numberOfCubes);
 
     frameCount += 1;
     if (frameCount === FRAME_COUNT_FOR_FPS) {
