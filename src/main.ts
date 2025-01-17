@@ -179,6 +179,7 @@ function parseValues(valuesString: string, min: number, max: number) {
       if (currNumber === null) {
         currNumber = Number(valuesString[i]);
       } else {
+        if (currNumber === 0) { return null; } // We don't allow leading zeroes.
         currNumber = 10 * currNumber + Number(valuesString[i]);
       }
     } else if (valuesString[i] === ',') {
@@ -199,6 +200,25 @@ function parseValues(valuesString: string, min: number, max: number) {
   return values;
 }
 
+function parseNumber(valuesString: string, min: number, max: number) {
+  let currNumber = null;
+  for (let i = 0; i < valuesString.length; i++) {
+    if ('0123456789'.includes(valuesString[i])) {
+      if (currNumber === null) {
+        currNumber = Number(valuesString[i]);
+      } else {
+        if (currNumber === 0) { return null; } // We don't allow leading zeroes.
+        currNumber = 10 * currNumber + Number(valuesString[i]);
+      }
+    } else {
+      return null;
+    }
+  }
+
+  if (currNumber === null || currNumber < min || currNumber > max) { return null; }
+  return currNumber;
+}
+
 function main() {
   const canvas = document.querySelector('canvas');
   if (!canvas) { return; }
@@ -211,18 +231,19 @@ function main() {
 
   const ruleInput = document.querySelector<HTMLInputElement>('#rule');
   if (!ruleInput) { return; }
-  let rule: [Set<number>, Set<number>] = [new Set(), new Set()];
+  let rule: [Set<number>, Set<number>, number] = [new Set(), new Set(), 2];
   ruleInput.addEventListener('input', e => {
     let ruleText = (e.target! as HTMLInputElement).value;
 
     let validRule = false;
     const parts = ruleText.split('/');
-    if (parts.length === 2) {
+    if (parts.length === 3) {
       const survival = parseValues(parts[0], 0, 26);
       const birth = parseValues(parts[1], 1, 26);
-      if (survival && birth) {
+      const numberOfStates = parseNumber(parts[2], 1, 10);
+      if (survival && birth && numberOfStates) {
         validRule = true;
-        rule = [survival, birth];
+        rule = [survival, birth, numberOfStates];
       }
     }
 
@@ -257,10 +278,12 @@ function main() {
   const cubesVertexShaderSource = `#version 300 es
     // https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/vertexAttribPointer#integer_attributes
     in vec3 globalPosition;
+    in float state;
     in vec3 localPosition;
     in vec3 normal;
     out vec4 outColor;
     uniform mat4 worldToClip;
+    uniform float numberOfStates;
   
     void main() {
       // I work with right handed, and convert it in the shader.
@@ -268,9 +291,7 @@ function main() {
       clipPosition.z = -clipPosition.z;
       gl_Position = clipPosition;
       vec4 inColor = vec4(0.0, 0.0, 0.0, 1.0);
-      inColor.r = 0.85 + 0.15 * sin(globalPosition.x / 3.0);
-      inColor.g = 0.85 - 0.15 * sin(globalPosition.y / 5.0);
-      inColor.b = 0.85 + 0.15 * sin(globalPosition.z / 7.0);
+      inColor.r = 1.0 - (1.0 - state / (numberOfStates - 1.0)) * (1.0 - state / (numberOfStates - 1.0));
       outColor = vec4(inColor.rgb * (2.0 + dot(vec3(0.3, 0.5, 1), normal)) / 3.0, inColor.a);
     }
   `;
@@ -313,13 +334,9 @@ function main() {
   }
 
   const GRID_SIZE = 50; // Needs to be even
-  let cubes: boolean[] = new Array(GRID_SIZE * GRID_SIZE * GRID_SIZE).fill(false);
-  let cubesCopy: boolean[] = new Array(GRID_SIZE * GRID_SIZE * GRID_SIZE).fill(false);
-  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2] = true;
-
-  // const planeTriangles = [
-  //   ...plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], 20.0, [1.0, 1.0, 1.0, 0.2]),
-  // ];
+  let cubes: number[] = new Array(GRID_SIZE * GRID_SIZE * GRID_SIZE).fill(0);
+  let cubesCopy: number[] = new Array(GRID_SIZE * GRID_SIZE * GRID_SIZE).fill(0);
+  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2] = rule[2] - 1;
 
   const cubesVao = gl.createVertexArray();
   gl.bindVertexArray(cubesVao);
@@ -388,22 +405,26 @@ function main() {
 
   const cubesDataBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, cubesDataBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, 3 * GRID_SIZE * GRID_SIZE * GRID_SIZE, gl.DYNAMIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, 4 * GRID_SIZE * GRID_SIZE * GRID_SIZE, gl.DYNAMIC_DRAW);
 
   const globalPositionLocation = gl.getAttribLocation(cubesProgram, 'globalPosition');
   gl.enableVertexAttribArray(globalPositionLocation);
   // https://www.khronos.org/opengl/wiki/Data_Type_(GLSL)#Vectors
   // https://stackoverflow.com/questions/42741233/unsigned-byte-in-glsl
-  gl.vertexAttribPointer(globalPositionLocation, 3, gl.BYTE, false, 0, 0);
+  gl.vertexAttribPointer(globalPositionLocation, 3, gl.BYTE, false, 4, 0);
   // https://webgl2fundamentals.org/webgl/lessons/webgl-instanced-drawing.html
   gl.vertexAttribDivisor(globalPositionLocation, 1);
+  const stateLocation = gl.getAttribLocation(cubesProgram, 'state');
+  gl.enableVertexAttribArray(stateLocation);
+  gl.vertexAttribPointer(stateLocation, 1, gl.BYTE, false, 4, 3);
+  gl.vertexAttribDivisor(stateLocation, 1);
 
   let cubesData = [];
   for (let x = 0; x < GRID_SIZE; x++) {
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let z = 0; z < GRID_SIZE; z++) {
         if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
-          cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2);
+          cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2, cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]);
         }
       }
     }
@@ -411,6 +432,7 @@ function main() {
   gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Int8Array(cubesData));
 
   const cubesWorldToClipLocation = gl.getUniformLocation(cubesProgram, "worldToClip");
+  const numberOfStatesLocation = gl.getUniformLocation(cubesProgram, "numberOfStates");
 
   let lastTime = Date.now();
   let frameCount = 0;
@@ -514,7 +536,7 @@ function main() {
     if (document.pointerLockElement) {
       if (e.code === 'KeyN') {
         for (let i = 0; i < cubesCopy.length; i++) {
-          cubesCopy[i] = false;
+          cubesCopy[i] = 0;
         }
 
         for (let x = 0; x < GRID_SIZE; x++) {
@@ -529,20 +551,24 @@ function main() {
                       || y + j < 0 || y + j >= GRID_SIZE
                       || z + k < 0 || z + k >= GRID_SIZE
                     ) { continue; }
-                    if (cubes[GRID_SIZE * GRID_SIZE * (x + i) + GRID_SIZE * (y + j) + z + k]) {
+                    if (cubes[GRID_SIZE * GRID_SIZE * (x + i) + GRID_SIZE * (y + j) + z + k] === rule[2] - 1) {
                       neighbours += 1;
                     }
                   }
                 }
               }
 
-              if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
+              if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] === rule[2] - 1) {
                 if (rule[0].has(neighbours)) {
-                  cubesCopy[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = true;
+                  cubesCopy[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = rule[2] - 1;
+                } else {
+                  cubesCopy[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = rule[2] - 2;
                 }
+              } else if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] > 0) {
+                cubesCopy[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] - 1;
               } else {
                 if (rule[1].has(neighbours)) {
-                  cubesCopy[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = true;
+                  cubesCopy[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = rule[2] - 1;
                 }
               }
             }
@@ -559,7 +585,7 @@ function main() {
           for (let y = 0; y < GRID_SIZE; y++) {
             for (let z = 0; z < GRID_SIZE; z++) {
               if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
-                cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2);
+                cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2, cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]);
                 cubeCount += 1;
               }
             }
@@ -649,8 +675,9 @@ function main() {
         if (-GRID_SIZE / 2 <= x && x < GRID_SIZE / 2
           && -GRID_SIZE / 2 <= y && y < GRID_SIZE / 2
           && -GRID_SIZE / 2 <= z && z < GRID_SIZE / 2
+          && cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (y + GRID_SIZE / 2) + z + GRID_SIZE / 2] === 0
         ) {
-          cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (y + GRID_SIZE / 2) + z + GRID_SIZE / 2] = true;
+          cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (y + GRID_SIZE / 2) + z + GRID_SIZE / 2] = rule[2] - 1;
         }
       } else if (tXZPlane > 0) {
         const mouseXZPlanePoint = add(cameraPosition, scale(cameraDirection, tXZPlane));
@@ -658,13 +685,14 @@ function main() {
         const z = Math.floor(mouseXZPlanePoint[2]);
         if (-GRID_SIZE / 2 <= x && x < GRID_SIZE / 2
           && -GRID_SIZE / 2 <= z && z < GRID_SIZE / 2
+          && cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (0 + GRID_SIZE / 2) + z + GRID_SIZE / 2] === 0
         ) {
-          cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (0 + GRID_SIZE / 2) + z + GRID_SIZE / 2] = true;
+          cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (0 + GRID_SIZE / 2) + z + GRID_SIZE / 2] = rule[2] - 1;
         }
       }
     } else if (e.button === 2) {
       if (cubeIndex !== null) {
-        cubes[GRID_SIZE * GRID_SIZE * cubeIndex[0] + GRID_SIZE * cubeIndex[1] + cubeIndex[2]] = false;
+        cubes[GRID_SIZE * GRID_SIZE * cubeIndex[0] + GRID_SIZE * cubeIndex[1] + cubeIndex[2]] = 0;
       }
     }
 
@@ -673,7 +701,7 @@ function main() {
       for (let y = 0; y < GRID_SIZE; y++) {
         for (let z = 0; z < GRID_SIZE; z++) {
           if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
-            cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2);
+            cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2, cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]);
           }
         }
       }
@@ -784,6 +812,7 @@ function main() {
       worldToClip[2], worldToClip[6], worldToClip[10], worldToClip[14],
       worldToClip[3], worldToClip[7], worldToClip[11], worldToClip[15],
     ]);
+    gl!.uniform1f(numberOfStatesLocation, rule[2]);
     let numberOfCubes = 0;
     for (let i = 0; i < cubes.length; i++) {
       if (cubes[i]) {
