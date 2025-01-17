@@ -134,15 +134,15 @@ function plane(
 ) {
   // Gram Schmidt Orthogonalization
   const axes = [normal];
-  if (normal[0] !== 0) {
+  if (Math.abs(normal[0]) > 1e-6) {
     axes.push([0, 1, 0]);
     axes.push([0, 0, 1]);
-  } else if (normal[1] !== 0) {
+  } else if (Math.abs(normal[2]) > 1e-6) {
+    axes.push([0, 1, 0]);
     axes.push([1, 0, 0]);
-    axes.push([0, 0, 1]);
   } else {
     axes.push([1, 0, 0]);
-    axes.push([0, 1, 0]);
+    axes.push([0, 0, 1]);
   }
 
   for (let i = 0; i < 3; i++) {
@@ -151,22 +151,22 @@ function plane(
       axis = diff(axis, scale(axes[j], dot(axes[j], axes[i])));
     }
     axes[i] = normalize(axis);
-  }  
+  }
 
   return [
-    ...diff(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
-    ...diff(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
-    ...add(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
-    ...diff(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
-    ...add(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
-    ...add(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
+    ...diff(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color,
+    ...diff(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color,
+    ...add(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color,
+    ...diff(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color,
+    ...add(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color,
+    ...add(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color,
 
-    ...diff(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
-    ...add(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
-    ...diff(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
-    ...diff(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
-    ...add(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
-    ...add(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color, 0, 1, 0,
+    ...diff(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color,
+    ...add(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color,
+    ...diff(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color,
+    ...diff(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color,
+    ...add(add(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color,
+    ...add(diff(center, scale(axes[1], size / 2)), scale(axes[2], size / 2)), ...color,
   ];
 }
 
@@ -254,7 +254,7 @@ function main() {
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-  const vertexShaderSource = `#version 300 es
+  const cubesVertexShaderSource = `#version 300 es
     // https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/vertexAttribPointer#integer_attributes
     in vec3 globalPosition;
     in vec3 localPosition;
@@ -274,16 +274,16 @@ function main() {
       outColor = vec4(inColor.rgb * (2.0 + dot(vec3(0.3, 0.5, 1), normal)) / 3.0, inColor.a);
     }
   `;
-  const vertexShader = gl.createShader(gl.VERTEX_SHADER);
-  if (!vertexShader) { return; }
-  gl.shaderSource(vertexShader, vertexShaderSource);
-  gl.compileShader(vertexShader);
-  if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
-    console.log(gl.getShaderInfoLog(vertexShader));
+  const cubesVertexShader = gl.createShader(gl.VERTEX_SHADER);
+  if (!cubesVertexShader) { return; }
+  gl.shaderSource(cubesVertexShader, cubesVertexShaderSource);
+  gl.compileShader(cubesVertexShader);
+  if (!gl.getShaderParameter(cubesVertexShader, gl.COMPILE_STATUS)) {
+    console.log(gl.getShaderInfoLog(cubesVertexShader));
     return;
   }
 
-  const fragmentShaderSource = `#version 300 es
+  const cubesFragmentShaderSource = `#version 300 es
     precision highp float;
 
     out vec4 color;
@@ -293,22 +293,22 @@ function main() {
       color = outColor;
     }
   `;
-  const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-  if (!fragmentShader) { return; }
-  gl.shaderSource(fragmentShader, fragmentShaderSource);
-  gl.compileShader(fragmentShader);
-  if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
-    console.log(gl.getShaderInfoLog(fragmentShader));
+  const cubesFragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+  if (!cubesFragmentShader) { return; }
+  gl.shaderSource(cubesFragmentShader, cubesFragmentShaderSource);
+  gl.compileShader(cubesFragmentShader);
+  if (!gl.getShaderParameter(cubesFragmentShader, gl.COMPILE_STATUS)) {
+    console.log(gl.getShaderInfoLog(cubesFragmentShader));
     return;
   }
 
-  const program = gl.createProgram();
-  if (!program) { return; }
-  gl.attachShader(program, vertexShader);
-  gl.attachShader(program, fragmentShader);
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    console.log(gl.getProgramInfoLog(program));
+  const cubesProgram = gl.createProgram();
+  if (!cubesProgram) { return; }
+  gl.attachShader(cubesProgram, cubesVertexShader);
+  gl.attachShader(cubesProgram, cubesFragmentShader);
+  gl.linkProgram(cubesProgram);
+  if (!gl.getProgramParameter(cubesProgram, gl.LINK_STATUS)) {
+    console.log(gl.getProgramInfoLog(cubesProgram));
     return;
   }
 
@@ -321,8 +321,8 @@ function main() {
   //   ...plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], 20.0, [1.0, 1.0, 1.0, 0.2]),
   // ];
 
-  const vao = gl.createVertexArray();
-  gl.bindVertexArray(vao);
+  const cubesVao = gl.createVertexArray();
+  gl.bindVertexArray(cubesVao);
 
   const singleCubeBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, singleCubeBuffer);
@@ -379,10 +379,10 @@ function main() {
   ),
   gl.STATIC_DRAW);
 
-  const localPositionLocation = gl.getAttribLocation(program, 'localPosition');
+  const localPositionLocation = gl.getAttribLocation(cubesProgram, 'localPosition');
   gl.enableVertexAttribArray(localPositionLocation);
   gl.vertexAttribPointer(localPositionLocation, 3, gl.FLOAT, false, 6 * 4, 0);
-  const normalLocation = gl.getAttribLocation(program, "normal");
+  const normalLocation = gl.getAttribLocation(cubesProgram, "normal");
   gl.enableVertexAttribArray(normalLocation);
   gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 6 * 4, 3 * 4);
 
@@ -390,7 +390,7 @@ function main() {
   gl.bindBuffer(gl.ARRAY_BUFFER, cubesDataBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, 3 * GRID_SIZE * GRID_SIZE * GRID_SIZE, gl.DYNAMIC_DRAW);
 
-  const globalPositionLocation = gl.getAttribLocation(program, 'globalPosition');
+  const globalPositionLocation = gl.getAttribLocation(cubesProgram, 'globalPosition');
   gl.enableVertexAttribArray(globalPositionLocation);
   // https://www.khronos.org/opengl/wiki/Data_Type_(GLSL)#Vectors
   // https://stackoverflow.com/questions/42741233/unsigned-byte-in-glsl
@@ -410,7 +410,7 @@ function main() {
   }
   gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Int8Array(cubesData));
 
-  const worldToClipLocation = gl.getUniformLocation(program, "worldToClip");
+  const cubesWorldToClipLocation = gl.getUniformLocation(cubesProgram, "worldToClip");
 
   let lastTime = Date.now();
   let frameCount = 0;
@@ -426,6 +426,86 @@ function main() {
   let fov = 120;
 
   let mousePosition = [window.innerWidth / 2, window.innerHeight / 2];
+
+  const planesVertexShaderSource = `#version 300 es
+    // https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/vertexAttribPointer#integer_attributes
+    in vec3 position;
+    in vec4 color;
+    out vec4 outColor;
+    uniform mat4 worldToClip;
+
+    void main() {
+      // I work with right handed, and convert it in the shader.
+      vec4 clipPosition = worldToClip * vec4(position, 1);
+      clipPosition.z = -clipPosition.z;
+      gl_Position = clipPosition;
+      outColor = color;
+    }
+  `;
+  const planesVertexShader = gl.createShader(gl.VERTEX_SHADER);
+  if (!planesVertexShader) { return; }
+  gl.shaderSource(planesVertexShader, planesVertexShaderSource);
+  gl.compileShader(planesVertexShader);
+  if (!gl.getShaderParameter(planesVertexShader, gl.COMPILE_STATUS)) {
+    console.log(gl.getShaderInfoLog(planesVertexShader));
+    return;
+  }
+
+  const planesFragmentShaderSource = `#version 300 es
+    precision highp float;
+
+    out vec4 color;
+    in vec4 outColor;
+
+    void main() {
+      color = outColor;
+    }
+  `;
+  const planesFragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+  if (!planesFragmentShader) { return; }
+  gl.shaderSource(planesFragmentShader, planesFragmentShaderSource);
+  gl.compileShader(planesFragmentShader);
+  if (!gl.getShaderParameter(planesFragmentShader, gl.COMPILE_STATUS)) {
+    console.log(gl.getShaderInfoLog(planesFragmentShader));
+    return;
+  }
+
+  const planesProgram = gl.createProgram();
+  if (!planesProgram) { return; }
+  gl.attachShader(planesProgram, planesVertexShader);
+  gl.attachShader(planesProgram, planesFragmentShader);
+  gl.linkProgram(planesProgram);
+  if (!gl.getProgramParameter(planesProgram, gl.LINK_STATUS)) {
+    console.log(gl.getProgramInfoLog(planesProgram));
+    return;
+  }
+
+  const planesVao = gl.createVertexArray();
+  gl.bindVertexArray(planesVao);
+
+  const planesBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, planesBuffer);
+  const cameraDirection: [number, number, number] = [
+    Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
+    Math.sin(cameraDirectionAngles[1]),
+    Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
+  ];
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(
+    [
+      ...plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], GRID_SIZE, [1.0, 1.0, 1.0, 0.2]),
+      ...plane(add(cameraPosition, scale(cameraDirection, 2 * near)), cameraDirection, 2 * near * Math.tan(fov / 2) * 2 * 10 / gl!.canvas.width, [0.0, 0.0, 0.0, 1.0]),
+    ]
+  ),
+  gl.DYNAMIC_DRAW);
+
+  const positionLocation = gl.getAttribLocation(planesProgram, 'position');
+  gl.enableVertexAttribArray(positionLocation);
+  gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 7 * 4, 0);
+  const colorLocation = gl.getAttribLocation(planesProgram, "color");
+  gl.enableVertexAttribArray(colorLocation);
+  gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 7 * 4, 3 * 4);
+
+  const planesWorldToClipLocation = gl.getUniformLocation(planesProgram, "worldToClip");
 
   const keysDown = new Set<string>();
   window.addEventListener('keydown', (e) => {
@@ -486,6 +566,7 @@ function main() {
           }
         }
 
+        gl.bindBuffer(gl.ARRAY_BUFFER, cubesDataBuffer);
         gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Int8Array(cubesData));
       }
     }
@@ -597,6 +678,7 @@ function main() {
         }
       }
     }
+    gl.bindBuffer(gl.ARRAY_BUFFER, cubesDataBuffer);
     gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Int8Array(cubesData));
   });
   window.addEventListener("mousemove", e => {
@@ -693,14 +775,14 @@ function main() {
     gl!.clearDepth(1);
     gl!.clear(gl!.COLOR_BUFFER_BIT | gl!.DEPTH_BUFFER_BIT);
 
-    gl!.useProgram(program);
-    gl!.uniformMatrix4fv(worldToClipLocation, false, [
+    gl!.bindVertexArray(cubesVao);
+    gl!.useProgram(cubesProgram);
+    gl!.uniformMatrix4fv(cubesWorldToClipLocation, false, [
       worldToClip[0], worldToClip[4], worldToClip[8], worldToClip[12],
       worldToClip[1], worldToClip[5], worldToClip[9], worldToClip[13],
       worldToClip[2], worldToClip[6], worldToClip[10], worldToClip[14],
       worldToClip[3], worldToClip[7], worldToClip[11], worldToClip[15],
     ]);
-
     let numberOfCubes = 0;
     for (let i = 0; i < cubes.length; i++) {
       if (cubes[i]) {
@@ -708,6 +790,28 @@ function main() {
       }
     }
     gl!.drawArraysInstanced(gl!.TRIANGLES, 0, 36, numberOfCubes);
+
+    gl!.bindVertexArray(planesVao);
+    gl!.useProgram(planesProgram);
+    gl!.uniformMatrix4fv(planesWorldToClipLocation, false, [
+      worldToClip[0], worldToClip[4], worldToClip[8], worldToClip[12],
+      worldToClip[1], worldToClip[5], worldToClip[9], worldToClip[13],
+      worldToClip[2], worldToClip[6], worldToClip[10], worldToClip[14],
+      worldToClip[3], worldToClip[7], worldToClip[11], worldToClip[15],
+    ]);
+    gl!.bindBuffer(gl!.ARRAY_BUFFER, planesBuffer);
+    const cameraDirection: [number, number, number] = [
+      Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
+      Math.sin(cameraDirectionAngles[1]),
+      Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
+    ];
+    gl!.bufferSubData(gl!.ARRAY_BUFFER, 0, new Float32Array(
+      [
+        ...plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], GRID_SIZE, [1.0, 1.0, 1.0, 0.2]),
+        ...plane(add(cameraPosition, scale(cameraDirection, 2 * near)), cameraDirection, 2 * near * Math.tan(fov / 2) * 2 * 10 / gl!.canvas.width, [0.0, 0.0, 0.0, 1.0]),
+      ]
+    ));
+    gl!.drawArrays(gl!.TRIANGLES, 0, 24);
 
     frameCount += 1;
     if (frameCount === FRAME_COUNT_FOR_FPS) {
