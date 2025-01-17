@@ -741,7 +741,8 @@ function main() {
   
       if (magnitude(direction) > 1e-6) {
         direction = normalize(direction);
-        cameraPosition = add(cameraPosition, scale(direction, 0.1 * (Date.now() - lastFrame) / 16.66));
+        const speed = (keysDown.has('Shift') || keysDown.has('ShiftLeft') || keysDown.has('ShiftRight')) ? 0.3 : 0.1;
+        cameraPosition = add(cameraPosition, scale(direction, speed * (Date.now() - lastFrame) / 16.66));
       }
     }
     lastFrame = Date.now();
