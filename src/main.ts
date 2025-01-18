@@ -333,6 +333,46 @@ function main() {
     }
   });
 
+  const randomButton = document.querySelector<HTMLButtonElement>('#randomButton');
+  if (!randomButton) { return; }
+  randomButton.addEventListener('click', () => {
+    for (let i = 0; i < cubes.length; i++) {
+      cubes[i] = 0;
+    }
+    for (let x = GRID_SIZE / 2 - 3; x < GRID_SIZE / 2 + 3; x++) {
+      for (let y = GRID_SIZE / 2 - 3; y < GRID_SIZE / 2 + 3; y++) {
+        for (let z = GRID_SIZE / 2 - 3; z < GRID_SIZE / 2 + 3; z++) {
+          if (Math.random() < 0.2) {
+            cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = rule[2] - 1;
+          }
+        }
+      }
+    }
+
+    let cubesData = [];
+    for (let x = 0; x < GRID_SIZE; x++) {
+      for (let y = 0; y < GRID_SIZE; y++) {
+        for (let z = 0; z < GRID_SIZE; z++) {
+          if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
+            cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2, cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]);
+          }
+        }
+      }
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, cubesDataBuffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Int8Array(cubesData));
+  });
+
+  const clearButton = document.querySelector<HTMLButtonElement>('#clearButton');
+  if (!clearButton) { return; }
+  clearButton.addEventListener('click', () => {
+    for (let i = 0; i < cubes.length; i++) {
+      cubes[i] = 0;
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, cubesDataBuffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Int8Array([]));
+  });
+
   window.addEventListener('resize', () => {
     canvas.width = Math.floor(window.innerWidth);
     canvas.height = Math.floor(window.innerHeight);
