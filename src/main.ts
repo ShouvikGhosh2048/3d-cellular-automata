@@ -667,11 +667,27 @@ function main() {
                 for (let j = -1; j <= 1; j++) {
                   for (let k = -1; k <= 1; k++) {
                     if (i === 0 && j === 0 && k === 0) { continue; }
-                    if (x + i < 0 || x + i >= GRID_SIZE
-                      || y + j < 0 || y + j >= GRID_SIZE
-                      || z + k < 0 || z + k >= GRID_SIZE
-                    ) { continue; }
-                    if (cubes[GRID_SIZE * GRID_SIZE * (x + i) + GRID_SIZE * (y + j) + z + k] === rule[2] - 1) {
+
+                    let neighbourX = x + i;
+                    if (neighbourX < 0) {
+                      neighbourX += GRID_SIZE;
+                    } else if (neighbourX >= GRID_SIZE) {
+                      neighbourX -= GRID_SIZE;
+                    }
+                    let neighbourY = y + j;
+                    if (neighbourY < 0) {
+                      neighbourY += GRID_SIZE;
+                    } else if (neighbourY >= GRID_SIZE) {
+                      neighbourY -= GRID_SIZE;
+                    }
+                    let neighbourZ = z + k;
+                    if (neighbourZ < 0) {
+                      neighbourZ += GRID_SIZE;
+                    } else if (neighbourZ >= GRID_SIZE) {
+                      neighbourZ -= GRID_SIZE;
+                    }
+
+                    if (cubes[GRID_SIZE * GRID_SIZE * neighbourX + GRID_SIZE * neighbourY + neighbourZ] === rule[2] - 1) {
                       neighbours += 1;
                     }
                   }
@@ -700,13 +716,11 @@ function main() {
         }
 
         let cubesData = [];
-        let cubeCount = 0;
         for (let x = 0; x < GRID_SIZE; x++) {
           for (let y = 0; y < GRID_SIZE; y++) {
             for (let z = 0; z < GRID_SIZE; z++) {
               if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
                 cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2, cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]);
-                cubeCount += 1;
               }
             }
           }
