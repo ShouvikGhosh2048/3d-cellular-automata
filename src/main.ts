@@ -220,6 +220,60 @@ function parseNumber(valuesString: string, min: number, max: number) {
 }
 
 function main() {
+  const controlsButton = document.querySelector<HTMLButtonElement>('#controlsButton');
+  if (!controlsButton) { return; }
+
+  const controls = document.querySelector<HTMLDivElement>('#controls');
+  if (!controls) { return; }
+
+  controlsButton.addEventListener('click', () => {
+    if (controls.style.display === 'none') {
+      controls.style.display = 'block';
+    } else {
+      controls.style.display = 'none';
+    }
+  });
+
+  let normalSpeed = 0.1;
+  let fastSpeed = 0.3;
+  let mouseSpeed = 0.0003;
+
+  const normalSpeedInput = document.querySelector<HTMLInputElement>('#normalSpeed');
+  if (!normalSpeedInput) { return; }
+  normalSpeedInput.addEventListener('input', (e) => {
+    let speed = Number((e.target! as HTMLInputElement).value);
+    if (speed >= 0) {
+      normalSpeed = speed;
+      normalSpeedInput.style.backgroundColor = "";
+    } else {
+      normalSpeedInput.style.backgroundColor = "rgb(255, 230, 230)";
+    }
+  });
+
+  const fastSpeedInput = document.querySelector<HTMLInputElement>('#fastSpeed');
+  if (!fastSpeedInput) { return; }
+  fastSpeedInput.addEventListener('input', (e) => {
+    let speed = Number((e.target! as HTMLInputElement).value);
+    if (speed >= 0) {
+      fastSpeed = speed;
+      fastSpeedInput.style.backgroundColor = "";
+    } else {
+      fastSpeedInput.style.backgroundColor = "rgb(255, 230, 230)";
+    }
+  });
+
+  const mouseSpeedInput = document.querySelector<HTMLInputElement>('#mouseSpeed');
+  if (!mouseSpeedInput) { return; }
+  mouseSpeedInput.addEventListener('input', (e) => {
+    let speed = Number((e.target! as HTMLInputElement).value);
+    if (speed >= 0) {
+      mouseSpeed = speed;
+      mouseSpeedInput.style.backgroundColor = "";
+    } else {
+      mouseSpeedInput.style.backgroundColor = "rgb(255, 230, 230)";
+    }
+  });
+
   const canvas = document.querySelector('canvas');
   if (!canvas) { return; }
 
@@ -720,8 +774,8 @@ function main() {
     // https://github.com/mrdoob/three.js/blob/master/examples/games_fps.html and ThreeJS FPS controls
     // ThreeJS seems to use a faster mouse?
     // Create menu to try different values.
-    cameraDirectionAngles[0] -= 0.0003 * e.movementX;
-    cameraDirectionAngles[1] -= 0.0003 * e.movementY;
+    cameraDirectionAngles[0] -= mouseSpeed * e.movementX;
+    cameraDirectionAngles[1] -= mouseSpeed * e.movementY;
     cameraDirectionAngles[1] = clamp(cameraDirectionAngles[1], - Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
   });
 
@@ -769,7 +823,7 @@ function main() {
   
       if (magnitude(direction) > 1e-6) {
         direction = normalize(direction);
-        const speed = (keysDown.has('Shift') || keysDown.has('ShiftLeft') || keysDown.has('ShiftRight')) ? 0.3 : 0.1;
+        const speed = (keysDown.has('Shift') || keysDown.has('ShiftLeft') || keysDown.has('ShiftRight')) ? fastSpeed : normalSpeed;
         cameraPosition = add(cameraPosition, scale(direction, speed * (Date.now() - lastFrame) / 16.66));
       }
     }
