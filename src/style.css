@@ -74,6 +74,7 @@ canvas {
 #controls {
   background-color: rgb(230, 230, 230);
   padding: 2px;
+  display: none;
 }
 
 #controlValues {

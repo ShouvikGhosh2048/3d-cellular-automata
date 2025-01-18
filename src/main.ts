@@ -225,6 +225,7 @@ function main() {
 
   const controls = document.querySelector<HTMLDivElement>('#controls');
   if (!controls) { return; }
+  controls.style.display = 'none';
 
   controlsButton.addEventListener('click', () => {
     if (controls.style.display === 'none') {
@@ -285,7 +286,7 @@ function main() {
 
   const ruleInput = document.querySelector<HTMLInputElement>('#rule');
   if (!ruleInput) { return; }
-  let rule: [Set<number>, Set<number>, number] = [new Set(), new Set(), 2];
+  let rule: [Set<number>, Set<number>, number] = [new Set([4]), new Set([4]), 5];
   ruleInput.addEventListener('input', e => {
     let ruleText = (e.target! as HTMLInputElement).value;
 
@@ -387,10 +388,17 @@ function main() {
     return;
   }
 
-  const GRID_SIZE = 50; // Needs to be even
+  const GRID_SIZE = 50; // Needs to be even (and >= 6 for the initial example).
   let cubes: number[] = new Array(GRID_SIZE * GRID_SIZE * GRID_SIZE).fill(0);
   let cubesCopy: number[] = new Array(GRID_SIZE * GRID_SIZE * GRID_SIZE).fill(0);
-  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2] = rule[2] - 1;
+  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2 - 3] = rule[2] - 1;
+  cubes[(GRID_SIZE / 2 - 1) * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2 - 3] = rule[2] - 1;
+  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + (GRID_SIZE / 2 + 1) * GRID_SIZE + GRID_SIZE / 2 - 3] = rule[2] - 1;
+  cubes[(GRID_SIZE / 2 - 1) * GRID_SIZE * GRID_SIZE + (GRID_SIZE / 2 + 1) * GRID_SIZE + GRID_SIZE / 2 - 3] = rule[2] - 1;
+  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2 + 2] = rule[2] - 1;
+  cubes[(GRID_SIZE / 2 - 1) * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2 + 2] = rule[2] - 1;
+  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + (GRID_SIZE / 2 + 1) * GRID_SIZE + GRID_SIZE / 2 + 2] = rule[2] - 1;
+  cubes[(GRID_SIZE / 2 - 1) * GRID_SIZE * GRID_SIZE + (GRID_SIZE / 2 + 1) * GRID_SIZE + GRID_SIZE / 2 + 2] = rule[2] - 1;
 
   const cubesVao = gl.createVertexArray();
   gl.bindVertexArray(cubesVao);
@@ -492,8 +500,8 @@ function main() {
   let frameCount = 0;
   const FRAME_COUNT_FOR_FPS = 60;
 
-  let cameraPosition: [number, number, number] = [0, 10, 50];
-  let cameraDirectionAngles = [Math.PI, -Math.atan(cameraPosition[1] / cameraPosition[2])]; // [angle-in-xz-from-z, angle-from-xz]
+  let cameraPosition: [number, number, number] = [-50, 50, 50];
+  let cameraDirectionAngles = [3 * Math.PI / 4, - Math.atan(1 / Math.sqrt(2))]; // [angle-in-xz-from-z, angle-from-xz]
   let cameraUp: [number, number, number] = [0, 1, 0];
   // Prevent this: https://www.reddit.com/r/Unity3D/comments/s66qvs/whats_causing_this_strange_texture_flickering_in
   // Near and far bounds based on Raylib
