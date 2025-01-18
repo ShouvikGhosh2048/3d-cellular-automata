@@ -281,6 +281,12 @@ function main() {
   canvas.width = Math.floor(window.innerWidth);
   canvas.height = Math.floor(window.innerHeight);
 
+  const gl = canvas.getContext("webgl2", {
+    alpha: true,
+    premultipliedAlpha: false,
+  });
+  if (!gl) { return; }
+
   const fpsSpan = document.querySelector<HTMLSpanElement>('#fps')!;
   if (!fpsSpan) { return; }
 
@@ -299,6 +305,24 @@ function main() {
       if (survival && birth && numberOfStates) {
         validRule = true;
         rule = [survival, birth, numberOfStates];
+        for (let i = 0; i < cubes.length; i++) {
+          if (cubes[i] > 0) {
+            cubes[i] = numberOfStates - 1;
+          }
+        }
+
+        let cubesData = [];
+        for (let x = 0; x < GRID_SIZE; x++) {
+          for (let y = 0; y < GRID_SIZE; y++) {
+            for (let z = 0; z < GRID_SIZE; z++) {
+              if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
+                cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2, cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]);
+              }
+            }
+          }
+        }
+        gl.bindBuffer(gl.ARRAY_BUFFER, cubesDataBuffer);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Int8Array(cubesData));
       }
     }
 
@@ -313,12 +337,6 @@ function main() {
     canvas.width = Math.floor(window.innerWidth);
     canvas.height = Math.floor(window.innerHeight);
   });
-
-  const gl = canvas.getContext("webgl2", {
-    alpha: true,
-    premultipliedAlpha: false,
-  });
-  if (!gl) { return; }
 
   gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.CULL_FACE);
