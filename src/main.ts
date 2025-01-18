@@ -704,11 +704,7 @@ function main() {
     ];
 
     // TODO: Handle edge cases for parallel?
-    const tXZPlane = -cameraPosition[1] / cameraDirection[1];
     let tmin = Infinity;
-    if (tXZPlane > 0) {
-      tmin = tXZPlane;
-    }
     let center: null | [number, number, number] = null;
     let normal: null | [number, number, number] = null;
     let cubeIndex: null | [number, number, number] = null;
@@ -745,8 +741,19 @@ function main() {
       }
     }
 
+    let tXZPlane = Infinity;
+    if (-cameraPosition[1] / cameraDirection[1] > 0) {
+      const planePoint = add(cameraPosition, scale(cameraDirection, -cameraPosition[1] / cameraDirection[1]));
+      if (
+        -GRID_SIZE / 2 <= planePoint[0] && planePoint[0] <= GRID_SIZE / 2
+        && -GRID_SIZE / 2 <= planePoint[2] && planePoint[2] <= GRID_SIZE / 2
+      ) {
+        tXZPlane = -cameraPosition[1] / cameraDirection[1];
+      }
+    }
+
     if (e.button === 0) {
-      if (center && normal) {
+      if (center && normal && tmin < tXZPlane) {
         const position = add(diff(center, [0.5, 0.5, 0.5]), scale(normal, 0.49));
         const x = Math.round(position[0]);
         const y = Math.round(position[1]);
@@ -759,19 +766,20 @@ function main() {
         ) {
           cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (y + GRID_SIZE / 2) + z + GRID_SIZE / 2] = rule[2] - 1;
         }
-      } else if (tXZPlane > 0) {
+      } else if (isFinite(tXZPlane)) {
         const mouseXZPlanePoint = add(cameraPosition, scale(cameraDirection, tXZPlane));
         const x = Math.floor(mouseXZPlanePoint[0]);
+        const y = cameraPosition[1] > 0 ? 0 : -1;
         const z = Math.floor(mouseXZPlanePoint[2]);
         if (-GRID_SIZE / 2 <= x && x < GRID_SIZE / 2
           && -GRID_SIZE / 2 <= z && z < GRID_SIZE / 2
-          && cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (0 + GRID_SIZE / 2) + z + GRID_SIZE / 2] === 0
+          && cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (y + GRID_SIZE / 2) + z + GRID_SIZE / 2] === 0
         ) {
-          cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (0 + GRID_SIZE / 2) + z + GRID_SIZE / 2] = rule[2] - 1;
+          cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (y + GRID_SIZE / 2) + z + GRID_SIZE / 2] = rule[2] - 1;
         }
       }
     } else if (e.button === 2) {
-      if (cubeIndex !== null) {
+      if (cubeIndex !== null && tmin < tXZPlane) {
         cubes[GRID_SIZE * GRID_SIZE * cubeIndex[0] + GRID_SIZE * cubeIndex[1] + cubeIndex[2]] = 0;
       }
     }
