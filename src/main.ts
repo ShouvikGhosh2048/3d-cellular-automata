@@ -722,13 +722,79 @@ function main() {
     Math.sin(cameraDirectionAngles[1]),
     Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
   ];
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(
-    [
-      ...plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], GRID_SIZE, [1.0, 1.0, 1.0, 0.2]),
-      ...plane(add(cameraPosition, scale(cameraDirection, 2 * near)), cameraDirection, 2 * near * Math.tan(fov / 2) * 2 * 10 / gl!.canvas.width, [0.0, 0.0, 0.0, 1.0]),
-    ]
-  ),
-  gl.DYNAMIC_DRAW);
+  const planes = [];
+  planes.push(...plane(add(cameraPosition, scale(cameraDirection, 2 * near)), cameraDirection, 2 * near * Math.tan(fov / 2) * 2 * 10 / gl!.canvas.width, [0.0, 0.0, 0.0, 1.0]));
+  for (let i = -GRID_SIZE / 2; i < GRID_SIZE / 2; i++) {
+    const color = [1.0, 1.0, 1.0, 0.5];
+    const LINE_WIDTH = 0.05;
+
+    planes.push(
+      ...[i + LINE_WIDTH, 0, -GRID_SIZE / 2], ...color,
+      ...[i, 0, -GRID_SIZE / 2], ...color,
+      ...[i, 0, GRID_SIZE / 2], ...color,
+      ...[i + LINE_WIDTH, 0, -GRID_SIZE / 2], ...color,
+      ...[i, 0, GRID_SIZE / 2], ...color,
+      ...[i + LINE_WIDTH, 0, GRID_SIZE / 2], ...color,
+
+      ...[i + LINE_WIDTH, 0, -GRID_SIZE / 2], ...color,
+      ...[i, 0, GRID_SIZE / 2], ...color,
+      ...[i, 0, -GRID_SIZE / 2], ...color,
+      ...[i + LINE_WIDTH, 0, -GRID_SIZE / 2], ...color,
+      ...[i + LINE_WIDTH, 0, GRID_SIZE / 2], ...color,
+      ...[i, 0, GRID_SIZE / 2], ...color,
+    );
+
+    planes.push(
+      ...[i + 1 - LINE_WIDTH, 0, -GRID_SIZE / 2], ...color,
+      ...[i + 1, 0, -GRID_SIZE / 2], ...color,
+      ...[i + 1, 0, GRID_SIZE / 2], ...color,
+      ...[i + 1 - LINE_WIDTH, 0, -GRID_SIZE / 2], ...color,
+      ...[i + 1, 0, GRID_SIZE / 2], ...color,
+      ...[i + 1 - LINE_WIDTH, 0, GRID_SIZE / 2], ...color,
+
+      ...[i + 1 - LINE_WIDTH, 0, -GRID_SIZE / 2], ...color,
+      ...[i + 1, 0, GRID_SIZE / 2], ...color,
+      ...[i + 1, 0, -GRID_SIZE / 2], ...color,
+      ...[i + 1 - LINE_WIDTH, 0, -GRID_SIZE / 2], ...color,
+      ...[i + 1 - LINE_WIDTH, 0, GRID_SIZE / 2], ...color,
+      ...[i + 1, 0, GRID_SIZE / 2], ...color,
+    );
+
+    planes.push(
+      ...[-GRID_SIZE / 2, 0, i + LINE_WIDTH], ...color,
+      ...[-GRID_SIZE / 2, 0, i], ...color,
+      ...[GRID_SIZE / 2, 0, i], ...color,
+      ...[-GRID_SIZE / 2, 0, i + LINE_WIDTH], ...color,
+      ...[GRID_SIZE / 2, 0, i], ...color,
+      ...[GRID_SIZE / 2, 0, i + LINE_WIDTH], ...color,
+
+      ...[-GRID_SIZE / 2, 0, i + LINE_WIDTH], ...color,
+      ...[GRID_SIZE / 2, 0, i], ...color,
+      ...[-GRID_SIZE / 2, 0, i], ...color,
+      ...[-GRID_SIZE / 2, 0, i + LINE_WIDTH], ...color,
+      ...[GRID_SIZE / 2, 0, i + LINE_WIDTH], ...color,
+      ...[GRID_SIZE / 2, 0, i], ...color,
+    );
+
+    planes.push(
+      ...[-GRID_SIZE / 2, 0, i + 1 - LINE_WIDTH], ...color,
+      ...[GRID_SIZE / 2, 0, i + 1], ...color,
+      ...[-GRID_SIZE / 2, 0, i + 1], ...color,
+      ...[-GRID_SIZE / 2, 0, i + 1 - LINE_WIDTH], ...color,
+      ...[GRID_SIZE / 2, 0, i + 1 - LINE_WIDTH], ...color,
+      ...[GRID_SIZE / 2, 0, i + 1], ...color,
+      
+
+      ...[-GRID_SIZE / 2, 0, i + 1 - LINE_WIDTH], ...color,
+      ...[-GRID_SIZE / 2, 0, i + 1], ...color,
+      ...[GRID_SIZE / 2, 0, i + 1], ...color,
+      ...[-GRID_SIZE / 2, 0, i + 1 - LINE_WIDTH], ...color,
+      ...[GRID_SIZE / 2, 0, i + 1], ...color,
+      ...[GRID_SIZE / 2, 0, i + 1 - LINE_WIDTH], ...color,
+    );
+  }
+  planes.push(...plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], GRID_SIZE, [1.0, 1.0, 1.0, 0.2]));
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(planes), gl.DYNAMIC_DRAW);
 
   const positionLocation = gl.getAttribLocation(planesProgram, 'position');
   gl.enableVertexAttribArray(positionLocation);
@@ -1067,13 +1133,8 @@ function main() {
       Math.sin(cameraDirectionAngles[1]),
       Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
     ];
-    gl!.bufferSubData(gl!.ARRAY_BUFFER, 0, new Float32Array(
-      [
-        ...plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], GRID_SIZE, [1.0, 1.0, 1.0, 0.2]),
-        ...plane(add(cameraPosition, scale(cameraDirection, 2 * near)), cameraDirection, 2 * near * Math.tan(fov / 2) * 2 * 10 / gl!.canvas.width, [0.0, 0.0, 0.0, 1.0]),
-      ]
-    ));
-    gl!.drawArrays(gl!.TRIANGLES, 0, 24);
+    gl!.bufferSubData(gl!.ARRAY_BUFFER, 0, new Float32Array([...plane(add(cameraPosition, scale(cameraDirection, 2 * near)), cameraDirection, 2 * near * Math.tan(fov / 2) * 2 * 10 / gl!.canvas.width, [0.0, 0.0, 0.0, 1.0])]));
+    gl!.drawArrays(gl!.TRIANGLES, 0, planes.length / 7);
 
     frameCount += 1;
     if (frameCount === FRAME_COUNT_FOR_FPS) {
