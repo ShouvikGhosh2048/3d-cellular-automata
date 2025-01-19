@@ -463,57 +463,147 @@ function main() {
 
   const singleCubeBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, singleCubeBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(
-    [
-      // Back
-      0, 0, 0, 0, 0, -1,
-      0, 1, 0, 0, 0, -1,
-      1, 0, 0, 0, 0, -1,
-      1, 0, 0, 0, 0, -1,
-      0, 1, 0, 0, 0, -1,
-      1, 1, 0, 0, 0, -1,
-  
-      // Front
-      0, 0, 1, 0, 0, 1,
-      1, 0, 1, 0, 0, 1,
-      0, 1, 1, 0, 0, 1,
-      1, 0, 1, 0, 0, 1,
-      1, 1, 1, 0, 0, 1,
-      0, 1, 1, 0, 0, 1,
-  
-      // Left
-      0, 0, 0, -1, 0, 0,
-      0, 0, 1, -1, 0, 0,
-      0, 1, 0, -1, 0, 0,
-      0, 1, 0, -1, 0, 0,
-      0, 0, 1, -1, 0, 0,
-      0, 1, 1, -1, 0, 0,
-  
-      // Right
-      1, 0, 0, 1, 0, 0,
-      1, 1, 0, 1, 0, 0,
-      1, 0, 1, 1, 0, 0,
-      1, 1, 0, 1, 0, 0,
-      1, 1, 1, 1, 0, 0,
-      1, 0, 1, 1, 0, 0,
-  
-      // Bottom
-      0, 0, 0, 0, 1, 0,
-      1, 0, 0, 0, 1, 0,
-      0, 0, 1, 0, 1, 0,
-      0, 0, 1, 0, 1, 0,
-      1, 0, 0, 0, 1, 0,
-      1, 0, 1, 0, 1, 0,
-  
-      // Top
-      0, 1, 0, 0, 1, 0,
-      0, 1, 1, 0, 1, 0,
-      1, 1, 0, 0, 1, 0,
-      0, 1, 1, 0, 1, 0,
-      1, 1, 1, 0, 1, 0,
-      1, 1, 0, 0, 1, 0,
-    ]
-  ),
+  const EDGE_WIDTH = 0.05;
+  const singleCubeData = [];
+
+  // Faces
+  for (let i = 0; i < 3; i++) {
+    for (let j = -1; j <= 1; j += 2) {
+      const normal = [0, 0, 0];
+      normal[i] = j;
+      const v1 = [0, 0, 0];
+      const v2 = [0, 0, 0];
+      const v3 = [0, 0, 0];
+      const v4 = [0, 0, 0];
+      v1[i] = v2[i] = v3[i] = v4[i] = (1 + j) / 2;
+      let a1 = -1;
+      let a2 = -1;
+      if (i === 0) {
+        a1 = 1;
+        a2 = 2;
+      } else if (i === 1) {
+        a1 = 2;
+        a2 = 0;
+      } else {
+        a1 = 0;
+        a2 = 1;
+      }
+      v1[a1] = v2[a1] = 1 - EDGE_WIDTH;
+      v3[a1] = v4[a1] = EDGE_WIDTH;
+      v2[a2] = v3[a2] = 1 - EDGE_WIDTH;
+      v1[a2] = v4[a2] = EDGE_WIDTH;
+      if (j > 0) {
+        singleCubeData.push(
+          ...v1, ...normal,
+          ...v2, ...normal,
+          ...v3, ...normal,
+          ...v1, ...normal,
+          ...v3, ...normal,
+          ...v4, ...normal,
+        );
+      } else {
+        singleCubeData.push(
+          ...v1, ...normal,
+          ...v3, ...normal,
+          ...v2, ...normal,
+          ...v1, ...normal,
+          ...v4, ...normal,
+          ...v3, ...normal,
+        );
+      }
+    }
+  }
+
+  // Edges
+  for (let i = 0; i < 3; i++) {
+    for (let j = -1; j <= 1; j += 2) {
+      for (let k = -1; k <= 1; k += 2) {
+        let a1 = -1;
+        let a2 = -1;
+        if (i === 0) {
+          a1 = 1;
+          a2 = 2;
+        } else if (i === 1) {
+          a1 = 2;
+          a2 = 0;
+        } else {
+          a1 = 0;
+          a2 = 1;
+        }
+
+        let normal: [number, number, number] = [0, 0, 0];
+        normal[a1] = j;
+        normal[a2] = k;
+        normal = normalize(normal);
+
+        const v1 = [0, 0, 0];
+        const v2 = [0, 0, 0];
+        const v3 = [0, 0, 0];
+        const v4 = [0, 0, 0];
+
+        v1[i] = v2[i] = 1 - EDGE_WIDTH;
+        v3[i] = v4[i] = EDGE_WIDTH;
+
+        v1[a1] = v4[a1] = (1 + j) / 2 - j * EDGE_WIDTH;
+        v2[a1] = v3[a1] = (1 + j) / 2;
+
+        v1[a2] = v4[a2] = (1 + k) / 2;
+        v2[a2] = v3[a2] = (1 + k) / 2 - k * EDGE_WIDTH;
+
+        console.log(j, k, j * k);
+        if (j * k > 0) {
+          singleCubeData.push(
+            ...v1, ...normal,
+            ...v2, ...normal,
+            ...v3, ...normal,
+            ...v1, ...normal,
+            ...v3, ...normal,
+            ...v4, ...normal,
+          );
+        } else {
+          singleCubeData.push(
+            ...v1, ...normal,
+            ...v3, ...normal,
+            ...v2, ...normal,
+            ...v1, ...normal,
+            ...v4, ...normal,
+            ...v3, ...normal,
+          );
+        }
+      }
+    }
+  }
+
+  // Corners
+  for (let i = -1; i <= 1; i += 2) {
+    for (let j = -1; j <= 1; j += 2) {
+      for (let k = -1; k <= 1; k += 2) {
+        let normal: [number, number, number] = [i, j, k];
+        normal = normalize(normal);
+
+        const v1 = [(1 + i) / 2, (1 + j) / 2 - j * EDGE_WIDTH, (1 + k) / 2 - k * EDGE_WIDTH];
+        const v2 = [(1 + i) / 2 - i * EDGE_WIDTH, (1 + j) / 2, (1 + k) / 2 - k * EDGE_WIDTH];
+        const v3 = [(1 + i) / 2 - i * EDGE_WIDTH, (1 + j) / 2 - j * EDGE_WIDTH, (1 + k) / 2];
+
+
+        if (i * j * k > 0) {
+          singleCubeData.push(
+            ...v1, ...normal,
+            ...v2, ...normal,
+            ...v3, ...normal,
+          );
+        } else {
+          singleCubeData.push(
+            ...v1, ...normal,
+            ...v3, ...normal,
+            ...v2, ...normal,
+          );
+        }
+      }
+    }
+  }
+
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(singleCubeData),
   gl.STATIC_DRAW);
 
   const localPositionLocation = gl.getAttribLocation(cubesProgram, 'localPosition');
@@ -961,7 +1051,7 @@ function main() {
         numberOfCubes += 1;
       }
     }
-    gl!.drawArraysInstanced(gl!.TRIANGLES, 0, 36, numberOfCubes);
+    gl!.drawArraysInstanced(gl!.TRIANGLES, 0, singleCubeData.length / 6, numberOfCubes);
 
     gl!.bindVertexArray(planesVao);
     gl!.useProgram(planesProgram);
