@@ -262,6 +262,7 @@ function getWebGLState(canvas: HTMLCanvasElement) {
   }
 
   const cubesProgram = gl.createProgram();
+  if (!cubesProgram) { return null; }
   gl.attachShader(cubesProgram, cubesVertexShader);
   gl.attachShader(cubesProgram, cubesFragmentShader);
   gl.linkProgram(cubesProgram);
@@ -271,9 +272,11 @@ function getWebGLState(canvas: HTMLCanvasElement) {
   }
 
   const cubesVao = gl.createVertexArray();
+  if (!cubesVao) { return null; }
   gl.bindVertexArray(cubesVao);
 
   const singleCubeBuffer = gl.createBuffer();
+  if (!singleCubeBuffer) { return null; }
   gl.bindBuffer(gl.ARRAY_BUFFER, singleCubeBuffer);
 
   const EDGE_WIDTH = 0.05;
@@ -424,6 +427,7 @@ function getWebGLState(canvas: HTMLCanvasElement) {
   gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 6 * 4, 3 * 4);
 
   const cubesDataBuffer = gl.createBuffer();
+  if (!cubesDataBuffer) { return null; }
   gl.bindBuffer(gl.ARRAY_BUFFER, cubesDataBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, 4 * GRID_SIZE * GRID_SIZE * GRID_SIZE, gl.DYNAMIC_DRAW);
 
@@ -498,9 +502,11 @@ function getWebGLState(canvas: HTMLCanvasElement) {
   }
 
   const planesVao = gl.createVertexArray();
+  if (!planesVao) { return null; }
   gl.bindVertexArray(planesVao);
 
   const planesBuffer = gl.createBuffer();
+  if (!planesBuffer) { return null; }
   gl.bindBuffer(gl.ARRAY_BUFFER, planesBuffer);
 
   const planes = [];
