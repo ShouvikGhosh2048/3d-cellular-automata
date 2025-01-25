@@ -1,17 +1,14 @@
 import './style.css';
 
-function printMatrix(m: number[]) {
-  for (let i = 0; i < 4; i++) {
-    console.log(m.slice(4 * i, 4 * i + 4));
-  }
-  console.log('');
-}
+// Math
+type Vector3 = [number, number, number];
+type Vector4 = [number, number, number, number];
 
-function dot(a: [number, number, number], b: [number, number, number]) {
+function dot(a: Vector3, b: Vector3) {
   return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 }
 
-function cross(a: [number, number, number], b: [number, number, number]): [number, number, number] {
+function cross(a: Vector3, b: Vector3): Vector3 {
   return [
     a[1] * b[2] - a[2] * b[1],
     a[2] * b[0] - a[0] * b[2],
@@ -19,24 +16,24 @@ function cross(a: [number, number, number], b: [number, number, number]): [numbe
   ];
 }
 
-function scale(v: [number, number, number], c: number): [number, number, number] {
+function scale(v: Vector3, c: number): Vector3 {
   return [c * v[0], c * v[1], c * v[2]];
 }
 
-function add(a: [number, number, number], b: [number, number, number]): [number, number, number] {
+function add(a: Vector3, b: Vector3): Vector3 {
   return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 }
 
-function diff(a: [number, number, number], b: [number, number, number]): [number, number, number] {
+function diff(a: Vector3, b: Vector3): Vector3 {
   return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 }
 
-function magnitude(v: [number, number, number]) {
+function magnitude(v: Vector3) {
   return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 }
 
-function normalize(v: [number, number, number]): [number, number, number] {
-  const res: [number, number, number] = [...v];
+function normalize(v: Vector3): Vector3 {
+  const res: Vector3 = [...v];
   const m = magnitude(res);
   res[0] /= m;
   res[1] /= m;
@@ -44,7 +41,7 @@ function normalize(v: [number, number, number]): [number, number, number] {
   return res;
 }
 
-function matrixMultiply(a: number[], b: number[]) {
+function matrix4Multiply(a: number[], b: number[]) {
   const res = [];
 
   for (let i = 0; i < 4; i++) {
@@ -70,68 +67,81 @@ function clamp(x: number, min: number, max: number) {
   }
 }
 
-function axisAlignedBox(
-  position: [number, number, number],
-  dimensions: [number, number, number],
-  color: [number, number, number, number],
-) {
-  return [
-    // Back
-    position[0], position[1], position[2], ...color, 0, 0, -1,
-    position[0], position[1] + dimensions[1], position[2], ...color, 0, 0, -1,
-    position[0] + dimensions[0], position[1], position[2], ...color, 0, 0, -1,
-    position[0] + dimensions[0], position[1], position[2], ...color, 0, 0, -1,
-    position[0], position[1] + dimensions[1], position[2], ...color, 0, 0, -1,
-    position[0] + dimensions[0], position[1] + dimensions[1], position[2], ...color, 0, 0, -1,
+// Parsing
+function parseValues(valuesString: string, min: number, max: number) {
+  const values = new Set<number>();
 
-    // Front
-    position[0], position[1], position[2] + dimensions[2], ...color, 0, 0, 1,
-    position[0] + dimensions[0], position[1], position[2] + dimensions[2], ...color, 0, 0, 1,
-    position[0], position[1] + dimensions[1], position[2] + dimensions[2], ...color, 0, 0, 1,
-    position[0] + dimensions[0], position[1], position[2] + dimensions[2], ...color, 0, 0, 1,
-    position[0] + dimensions[0], position[1] + dimensions[1], position[2] + dimensions[2], ...color, 0, 0, 1,
-    position[0], position[1] + dimensions[1], position[2] + dimensions[2], ...color, 0, 0, 1,
+  let currNumber = null;
+  for (const ch of valuesString) {
+    if ('0123456789'.includes(ch)) {
+      if (currNumber === null) {
+        currNumber = Number(ch);
+      } else {
+        if (currNumber === 0) { return null; } // We don't allow leading zeroes.
+        currNumber = 10 * currNumber + Number(ch);
+      }
+    } else if (ch === ',') {
+      if (currNumber === null) { return null; } // Should have a number before a comma.
+      if (currNumber < min || currNumber > max) { return null; }
+      values.add(currNumber);
+      currNumber = null;
+    } else {
+      return null;
+    }
+  }
+  // We allow empty lists, but if its non empty, it needs to end with a number.
+  if (currNumber === null && values.size > 0) { return null; }
+  if (currNumber !== null) {
+    if (currNumber < min || currNumber > max) { return null; }
+    values.add(currNumber);
+  }
 
-    // Left
-    position[0], position[1], position[2], ...color, -1, 0, 0,
-    position[0], position[1], position[2] + dimensions[2], ...color, -1, 0, 0,
-    position[0], position[1] + dimensions[1], position[2], ...color, -1, 0, 0,
-    position[0], position[1] + dimensions[1], position[2], ...color, -1, 0, 0,
-    position[0], position[1], position[2] + dimensions[2], ...color, -1, 0, 0,
-    position[0], position[1] + dimensions[1], position[2] + dimensions[2], ...color, -1, 0, 0,
-
-    // Right
-    position[0] + dimensions[0], position[1], position[2], ...color, 1, 0, 0,
-    position[0] + dimensions[0], position[1] + dimensions[1], position[2], ...color, 1, 0, 0,
-    position[0] + dimensions[0], position[1], position[2] + dimensions[2], ...color, 1, 0, 0,
-    position[0] + dimensions[0], position[1] + dimensions[1], position[2], ...color, 1, 0, 0,
-    position[0] + dimensions[0], position[1] + dimensions[1], position[2] + dimensions[2], ...color, 1, 0, 0,
-    position[0] + dimensions[0], position[1], position[2] + dimensions[2], ...color, 1, 0, 0,
-
-    // Bottom
-    position[0], position[1], position[2], ...color, 0, 1, 0,
-    position[0] + dimensions[0], position[1], position[2], ...color, 0, 1, 0,
-    position[0], position[1], position[2] + dimensions[2], ...color, 0, 1, 0,
-    position[0], position[1], position[2] + dimensions[2], ...color, 0, 1, 0,
-    position[0] + dimensions[0], position[1], position[2], ...color, 0, 1, 0,
-    position[0] + dimensions[0], position[1], position[2] + dimensions[2], ...color, 0, 1, 0,
-
-    // Top
-    position[0], position[1] + dimensions[1], position[2], ...color, 0, 1, 0,
-    position[0], position[1] + dimensions[1], position[2] + dimensions[2], ...color, 0, 1, 0,
-    position[0] + dimensions[0], position[1] + dimensions[1], position[2], ...color, 0, 1, 0,
-    position[0], position[1] + dimensions[1], position[2] + dimensions[2], ...color, 0, 1, 0,
-    position[0] + dimensions[0], position[1] + dimensions[1], position[2] + dimensions[2], ...color, 0, 1, 0,
-    position[0] + dimensions[0], position[1] + dimensions[1], position[2], ...color, 0, 1, 0,
-  ];
+  return values;
 }
 
-function plane(
-  center: [number, number, number],
-  normal: [number, number, number],
-  size: number,
-  color: [number, number, number, number],
-) {
+function parseNumber(numberString: string, min: number, max: number) {
+  let currNumber = null;
+  for (const ch of numberString) {
+    if ('0123456789'.includes(ch)) {
+      if (currNumber === null) {
+        currNumber = Number(ch);
+      } else {
+        if (currNumber === 0) { return null; } // We don't allow leading zeroes.
+        currNumber = 10 * currNumber + Number(ch);
+      }
+    } else {
+      return null;
+    }
+  }
+
+  if (currNumber === null || currNumber < min || currNumber > max) { return null; }
+  return currNumber;
+}
+
+type Rule = {
+  survival: Set<number>,
+  birth: Set<number>,
+  numberOfStates: number,
+};
+
+function parseRule(ruleString: string) {
+  const parts = ruleString.split('/');
+  if (parts.length === 3) {
+    const survival = parseValues(parts[0], 0, 26);
+    const birth = parseValues(parts[1], 1, 26);
+    const numberOfStates = parseNumber(parts[2], 1, 10);
+    if (survival !== null && birth !== null && numberOfStates !== null) {
+      return { survival, birth, numberOfStates } as Rule;
+    }
+  }
+
+  return null;
+}
+
+// WebGL
+const GRID_SIZE = 50; // Needs to be even (and >= 6 for the initial example).
+
+function plane(center: Vector3, normal: Vector3, size: number, color: Vector4) {
   // Gram Schmidt Orthogonalization
   const axes = [normal];
   if (Math.abs(normal[0]) > 1e-6) {
@@ -170,213 +180,28 @@ function plane(
   ];
 }
 
-function parseValues(valuesString: string, min: number, max: number) {
-  const values = new Set<number>();
+type WebGLState = {
+  gl: WebGL2RenderingContext,
+  cubesVao: WebGLVertexArrayObject,
+  cubesDataBuffer: WebGLBuffer,
+  cubesProgram: WebGLProgram,
+  cubesWorldToClipLocation: WebGLUniformLocation,
+  numberOfStatesLocation: WebGLUniformLocation,
+  numberOfCubes: number,
+  singleCubeVertexCount: number,
+  planesVao: WebGLVertexArrayObject,
+  planesBuffer: WebGLBuffer,
+  planesProgram: WebGLProgram,
+  planesWorldToClipLocation: WebGLUniformLocation,
+  planesVertexCount: number,
+};
 
-  let currNumber = null;
-  for (let i = 0; i < valuesString.length; i++) {
-    if ('0123456789'.includes(valuesString[i])) {
-      if (currNumber === null) {
-        currNumber = Number(valuesString[i]);
-      } else {
-        if (currNumber === 0) { return null; } // We don't allow leading zeroes.
-        currNumber = 10 * currNumber + Number(valuesString[i]);
-      }
-    } else if (valuesString[i] === ',') {
-      if (currNumber === null) { return null; }
-      if (currNumber < min || currNumber > max) { return null; }
-      values.add(currNumber);
-      currNumber = null;
-    } else {
-      return null;
-    }
-  }
-  if (currNumber === null && values.size > 0) { return null; }
-  if (currNumber !== null) {
-    if (currNumber < min || currNumber > max) { return null; }
-    values.add(currNumber);
-  }
-
-  return values;
-}
-
-function parseNumber(valuesString: string, min: number, max: number) {
-  let currNumber = null;
-  for (let i = 0; i < valuesString.length; i++) {
-    if ('0123456789'.includes(valuesString[i])) {
-      if (currNumber === null) {
-        currNumber = Number(valuesString[i]);
-      } else {
-        if (currNumber === 0) { return null; } // We don't allow leading zeroes.
-        currNumber = 10 * currNumber + Number(valuesString[i]);
-      }
-    } else {
-      return null;
-    }
-  }
-
-  if (currNumber === null || currNumber < min || currNumber > max) { return null; }
-  return currNumber;
-}
-
-function main() {
-  const controlsButton = document.querySelector<HTMLButtonElement>('#controlsButton');
-  if (!controlsButton) { return; }
-
-  const controls = document.querySelector<HTMLDivElement>('#controls');
-  if (!controls) { return; }
-  controls.style.display = 'none';
-
-  controlsButton.addEventListener('click', () => {
-    if (controls.style.display === 'none') {
-      controls.style.display = 'block';
-    } else {
-      controls.style.display = 'none';
-    }
-  });
-
-  let normalSpeed = 0.1;
-  let fastSpeed = 0.3;
-  let mouseSpeed = 0.0003;
-
-  const normalSpeedInput = document.querySelector<HTMLInputElement>('#normalSpeed');
-  if (!normalSpeedInput) { return; }
-  normalSpeedInput.addEventListener('input', (e) => {
-    let speed = Number((e.target! as HTMLInputElement).value);
-    if (speed >= 0) {
-      normalSpeed = speed;
-      normalSpeedInput.style.backgroundColor = "";
-    } else {
-      normalSpeedInput.style.backgroundColor = "rgb(255, 230, 230)";
-    }
-  });
-
-  const fastSpeedInput = document.querySelector<HTMLInputElement>('#fastSpeed');
-  if (!fastSpeedInput) { return; }
-  fastSpeedInput.addEventListener('input', (e) => {
-    let speed = Number((e.target! as HTMLInputElement).value);
-    if (speed >= 0) {
-      fastSpeed = speed;
-      fastSpeedInput.style.backgroundColor = "";
-    } else {
-      fastSpeedInput.style.backgroundColor = "rgb(255, 230, 230)";
-    }
-  });
-
-  const mouseSpeedInput = document.querySelector<HTMLInputElement>('#mouseSpeed');
-  if (!mouseSpeedInput) { return; }
-  mouseSpeedInput.addEventListener('input', (e) => {
-    let speed = Number((e.target! as HTMLInputElement).value);
-    if (speed >= 0) {
-      mouseSpeed = speed;
-      mouseSpeedInput.style.backgroundColor = "";
-    } else {
-      mouseSpeedInput.style.backgroundColor = "rgb(255, 230, 230)";
-    }
-  });
-
-  const canvas = document.querySelector('canvas');
-  if (!canvas) { return; }
-
-  canvas.width = Math.floor(window.innerWidth);
-  canvas.height = Math.floor(window.innerHeight);
-
+function getWebGLState(canvas: HTMLCanvasElement) {
   const gl = canvas.getContext("webgl2", {
     alpha: true,
     premultipliedAlpha: false,
   });
-  if (!gl) { return; }
-
-  const fpsSpan = document.querySelector<HTMLSpanElement>('#fps')!;
-  if (!fpsSpan) { return; }
-
-  const ruleInput = document.querySelector<HTMLInputElement>('#rule');
-  if (!ruleInput) { return; }
-  let rule: [Set<number>, Set<number>, number] = [new Set([4]), new Set([4]), 5];
-  ruleInput.addEventListener('input', e => {
-    let ruleText = (e.target! as HTMLInputElement).value;
-
-    let validRule = false;
-    const parts = ruleText.split('/');
-    if (parts.length === 3) {
-      const survival = parseValues(parts[0], 0, 26);
-      const birth = parseValues(parts[1], 1, 26);
-      const numberOfStates = parseNumber(parts[2], 1, 10);
-      if (survival && birth && numberOfStates) {
-        validRule = true;
-        rule = [survival, birth, numberOfStates];
-        for (let i = 0; i < cubes.length; i++) {
-          if (cubes[i] > 0) {
-            cubes[i] = numberOfStates - 1;
-          }
-        }
-
-        let cubesData = [];
-        for (let x = 0; x < GRID_SIZE; x++) {
-          for (let y = 0; y < GRID_SIZE; y++) {
-            for (let z = 0; z < GRID_SIZE; z++) {
-              if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
-                cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2, cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]);
-              }
-            }
-          }
-        }
-        gl.bindBuffer(gl.ARRAY_BUFFER, cubesDataBuffer);
-        gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Int8Array(cubesData));
-      }
-    }
-
-    if (validRule) {
-      ruleInput.style.backgroundColor = "rgb(230, 230, 230)";
-    } else {
-      ruleInput.style.backgroundColor = "rgb(255, 230, 230)";
-    }
-  });
-
-  const randomButton = document.querySelector<HTMLButtonElement>('#randomButton');
-  if (!randomButton) { return; }
-  randomButton.addEventListener('click', () => {
-    for (let i = 0; i < cubes.length; i++) {
-      cubes[i] = 0;
-    }
-    for (let x = GRID_SIZE / 2 - 3; x < GRID_SIZE / 2 + 3; x++) {
-      for (let y = GRID_SIZE / 2 - 3; y < GRID_SIZE / 2 + 3; y++) {
-        for (let z = GRID_SIZE / 2 - 3; z < GRID_SIZE / 2 + 3; z++) {
-          if (Math.random() < 0.2) {
-            cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = rule[2] - 1;
-          }
-        }
-      }
-    }
-
-    let cubesData = [];
-    for (let x = 0; x < GRID_SIZE; x++) {
-      for (let y = 0; y < GRID_SIZE; y++) {
-        for (let z = 0; z < GRID_SIZE; z++) {
-          if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
-            cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2, cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]);
-          }
-        }
-      }
-    }
-    gl.bindBuffer(gl.ARRAY_BUFFER, cubesDataBuffer);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Int8Array(cubesData));
-  });
-
-  const clearButton = document.querySelector<HTMLButtonElement>('#clearButton');
-  if (!clearButton) { return; }
-  clearButton.addEventListener('click', () => {
-    for (let i = 0; i < cubes.length; i++) {
-      cubes[i] = 0;
-    }
-    gl.bindBuffer(gl.ARRAY_BUFFER, cubesDataBuffer);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Int8Array([]));
-  });
-
-  window.addEventListener('resize', () => {
-    canvas.width = Math.floor(window.innerWidth);
-    canvas.height = Math.floor(window.innerHeight);
-  });
+  if (!gl) { return null; }
 
   gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.CULL_FACE);
@@ -397,7 +222,7 @@ function main() {
     out vec4 outColor;
     uniform mat4 worldToClip;
     uniform float numberOfStates;
-  
+
     void main() {
       // I work with right handed, and convert it in the shader.
       vec4 clipPosition = worldToClip * vec4(globalPosition + localPosition, 1);
@@ -409,12 +234,12 @@ function main() {
     }
   `;
   const cubesVertexShader = gl.createShader(gl.VERTEX_SHADER);
-  if (!cubesVertexShader) { return; }
+  if (!cubesVertexShader) { return null; }
   gl.shaderSource(cubesVertexShader, cubesVertexShaderSource);
   gl.compileShader(cubesVertexShader);
   if (!gl.getShaderParameter(cubesVertexShader, gl.COMPILE_STATUS)) {
     console.log(gl.getShaderInfoLog(cubesVertexShader));
-    return;
+    return null;
   }
 
   const cubesFragmentShaderSource = `#version 300 es
@@ -428,44 +253,31 @@ function main() {
     }
   `;
   const cubesFragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-  if (!cubesFragmentShader) { return; }
+  if (!cubesFragmentShader) { return null; }
   gl.shaderSource(cubesFragmentShader, cubesFragmentShaderSource);
   gl.compileShader(cubesFragmentShader);
   if (!gl.getShaderParameter(cubesFragmentShader, gl.COMPILE_STATUS)) {
     console.log(gl.getShaderInfoLog(cubesFragmentShader));
-    return;
+    return null;
   }
 
   const cubesProgram = gl.createProgram();
-  if (!cubesProgram) { return; }
   gl.attachShader(cubesProgram, cubesVertexShader);
   gl.attachShader(cubesProgram, cubesFragmentShader);
   gl.linkProgram(cubesProgram);
   if (!gl.getProgramParameter(cubesProgram, gl.LINK_STATUS)) {
     console.log(gl.getProgramInfoLog(cubesProgram));
-    return;
+    return null;
   }
-
-  const GRID_SIZE = 50; // Needs to be even (and >= 6 for the initial example).
-  let cubes: number[] = new Array(GRID_SIZE * GRID_SIZE * GRID_SIZE).fill(0);
-  let cubesCopy: number[] = new Array(GRID_SIZE * GRID_SIZE * GRID_SIZE).fill(0);
-  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2 - 3] = rule[2] - 1;
-  cubes[(GRID_SIZE / 2 - 1) * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2 - 3] = rule[2] - 1;
-  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + (GRID_SIZE / 2 + 1) * GRID_SIZE + GRID_SIZE / 2 - 3] = rule[2] - 1;
-  cubes[(GRID_SIZE / 2 - 1) * GRID_SIZE * GRID_SIZE + (GRID_SIZE / 2 + 1) * GRID_SIZE + GRID_SIZE / 2 - 3] = rule[2] - 1;
-  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2 + 2] = rule[2] - 1;
-  cubes[(GRID_SIZE / 2 - 1) * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2 + 2] = rule[2] - 1;
-  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + (GRID_SIZE / 2 + 1) * GRID_SIZE + GRID_SIZE / 2 + 2] = rule[2] - 1;
-  cubes[(GRID_SIZE / 2 - 1) * GRID_SIZE * GRID_SIZE + (GRID_SIZE / 2 + 1) * GRID_SIZE + GRID_SIZE / 2 + 2] = rule[2] - 1;
 
   const cubesVao = gl.createVertexArray();
   gl.bindVertexArray(cubesVao);
 
   const singleCubeBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, singleCubeBuffer);
+
   const EDGE_WIDTH = 0.05;
   const singleCubeData = [];
-
   // Faces
   for (let i = 0; i < 3; i++) {
     for (let j = -1; j <= 1; j += 2) {
@@ -531,7 +343,7 @@ function main() {
           a2 = 1;
         }
 
-        let normal: [number, number, number] = [0, 0, 0];
+        let normal: Vector3 = [0, 0, 0];
         normal[a1] = j;
         normal[a2] = k;
         normal = normalize(normal);
@@ -578,7 +390,7 @@ function main() {
   for (let i = -1; i <= 1; i += 2) {
     for (let j = -1; j <= 1; j += 2) {
       for (let k = -1; k <= 1; k += 2) {
-        let normal: [number, number, number] = [i, j, k];
+        let normal: Vector3 = [i, j, k];
         normal = normalize(normal);
 
         const v1 = [(1 + i) / 2, (1 + j) / 2 - j * EDGE_WIDTH, (1 + k) / 2 - k * EDGE_WIDTH];
@@ -602,9 +414,7 @@ function main() {
       }
     }
   }
-
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(singleCubeData),
-  gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(singleCubeData), gl.STATIC_DRAW);
 
   const localPositionLocation = gl.getAttribLocation(cubesProgram, 'localPosition');
   gl.enableVertexAttribArray(localPositionLocation);
@@ -629,35 +439,10 @@ function main() {
   gl.vertexAttribPointer(stateLocation, 1, gl.BYTE, false, 4, 3);
   gl.vertexAttribDivisor(stateLocation, 1);
 
-  let cubesData = [];
-  for (let x = 0; x < GRID_SIZE; x++) {
-    for (let y = 0; y < GRID_SIZE; y++) {
-      for (let z = 0; z < GRID_SIZE; z++) {
-        if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
-          cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2, cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]);
-        }
-      }
-    }
-  }
-  gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Int8Array(cubesData));
-
   const cubesWorldToClipLocation = gl.getUniformLocation(cubesProgram, "worldToClip");
+  if (!cubesWorldToClipLocation) { return; }
   const numberOfStatesLocation = gl.getUniformLocation(cubesProgram, "numberOfStates");
-
-  let lastTime = Date.now();
-  let frameCount = 0;
-  const FRAME_COUNT_FOR_FPS = 60;
-
-  let cameraPosition: [number, number, number] = [-50, 50, 50];
-  let cameraDirectionAngles = [3 * Math.PI / 4, - Math.atan(1 / Math.sqrt(2))]; // [angle-in-xz-from-z, angle-from-xz]
-  let cameraUp: [number, number, number] = [0, 1, 0];
-  // Prevent this: https://www.reddit.com/r/Unity3D/comments/s66qvs/whats_causing_this_strange_texture_flickering_in
-  // Near and far bounds based on Raylib
-  let near = 0.01;
-  let far = 1000;
-  let fov = 120;
-
-  let mousePosition = [window.innerWidth / 2, window.innerHeight / 2];
+  if (!numberOfStatesLocation) { return; }
 
   const planesVertexShaderSource = `#version 300 es
     // https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/vertexAttribPointer#integer_attributes
@@ -675,12 +460,12 @@ function main() {
     }
   `;
   const planesVertexShader = gl.createShader(gl.VERTEX_SHADER);
-  if (!planesVertexShader) { return; }
+  if (!planesVertexShader) { return null; }
   gl.shaderSource(planesVertexShader, planesVertexShaderSource);
   gl.compileShader(planesVertexShader);
   if (!gl.getShaderParameter(planesVertexShader, gl.COMPILE_STATUS)) {
     console.log(gl.getShaderInfoLog(planesVertexShader));
-    return;
+    return null;
   }
 
   const planesFragmentShaderSource = `#version 300 es
@@ -694,22 +479,22 @@ function main() {
     }
   `;
   const planesFragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-  if (!planesFragmentShader) { return; }
+  if (!planesFragmentShader) { return null; }
   gl.shaderSource(planesFragmentShader, planesFragmentShaderSource);
   gl.compileShader(planesFragmentShader);
   if (!gl.getShaderParameter(planesFragmentShader, gl.COMPILE_STATUS)) {
     console.log(gl.getShaderInfoLog(planesFragmentShader));
-    return;
+    return null;
   }
 
   const planesProgram = gl.createProgram();
-  if (!planesProgram) { return; }
+  if (!planesProgram) { return null; }
   gl.attachShader(planesProgram, planesVertexShader);
   gl.attachShader(planesProgram, planesFragmentShader);
   gl.linkProgram(planesProgram);
   if (!gl.getProgramParameter(planesProgram, gl.LINK_STATUS)) {
     console.log(gl.getProgramInfoLog(planesProgram));
-    return;
+    return null;
   }
 
   const planesVao = gl.createVertexArray();
@@ -717,13 +502,9 @@ function main() {
 
   const planesBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, planesBuffer);
-  const cameraDirection: [number, number, number] = [
-    Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
-    Math.sin(cameraDirectionAngles[1]),
-    Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
-  ];
+
   const planes = [];
-  planes.push(...plane(add(cameraPosition, scale(cameraDirection, 2 * near)), cameraDirection, 2 * near * Math.tan(fov / 2) * 2 * 10 / gl!.canvas.width, [0.0, 0.0, 0.0, 1.0]));
+  planes.push(...plane([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], 10.0, [0.0, 0.0, 0.0, 1.0])); // Empty space for crosshair
   for (let i = -GRID_SIZE / 2; i < GRID_SIZE / 2; i++) {
     const color = [1.0, 1.0, 1.0, 0.5];
     const LINE_WIDTH = 0.05;
@@ -804,6 +585,264 @@ function main() {
   gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 7 * 4, 3 * 4);
 
   const planesWorldToClipLocation = gl.getUniformLocation(planesProgram, "worldToClip");
+  if (!planesWorldToClipLocation) { return null; }
+
+  return {
+    gl,
+    cubesVao,
+    cubesDataBuffer,
+    cubesProgram,
+    cubesWorldToClipLocation,
+    numberOfStatesLocation,
+    numberOfCubes: 0,
+    singleCubeVertexCount: singleCubeData.length / 6,
+    planesVao,
+    planesBuffer,
+    planesProgram,
+    planesWorldToClipLocation,
+    planesVertexCount: planes.length / 7,
+  };
+}
+
+function setCubesData(cubes: number[], state: WebGLState) {
+  let cubesData = [];
+  state.numberOfCubes = 0;
+  for (let x = 0; x < GRID_SIZE; x++) {
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let z = 0; z < GRID_SIZE; z++) {
+        if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
+          cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2, cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]);
+          state.numberOfCubes += 1;
+        }
+      }
+    }
+  }
+  state.gl.bindBuffer(state.gl.ARRAY_BUFFER, state.cubesDataBuffer);
+  state.gl.bufferSubData(state.gl.ARRAY_BUFFER, 0, new Int8Array(cubesData));
+}
+
+function drawWebGLState(state: WebGLState, cameraPosition: Vector3, cameraDirectionAngles: [number, number], rule: Rule) {
+  // Prevent this: https://www.reddit.com/r/Unity3D/comments/s66qvs/whats_causing_this_strange_texture_flickering_in
+  // Near and far bounds based on Raylib
+  let near = 0.01;
+  let far = 1000;
+  let fov = 120;
+
+  let cameraDirectionOppositeNormalized: Vector3 = [
+    -Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
+    -Math.sin(cameraDirectionAngles[1]),
+    -Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
+  ];
+  let upNormalized = normalize(diff([0.0, 1.0, 0.0], scale(cameraDirectionOppositeNormalized, dot(cameraDirectionOppositeNormalized, [0.0, 1.0, 0.0]))));
+  // Normal since other two vectors are unit and orthogonal.
+  let rightNormalized = cross(upNormalized, cameraDirectionOppositeNormalized);
+
+  const cameraPositionShift = new Array(16).fill(0);
+  cameraPositionShift[0] = cameraPositionShift[5] = cameraPositionShift[10] = cameraPositionShift[15] = 1;
+  cameraPositionShift[3] = -cameraPosition[0];
+  cameraPositionShift[7] = -cameraPosition[1];
+  cameraPositionShift[11] = -cameraPosition[2];
+
+  let rotation = new Array(16).fill(0);
+  rotation[15] = 1;
+  
+  for (let i = 0; i < 3; i++) {
+    rotation[0 * 4 + i] = rightNormalized[i];
+    rotation[1 * 4 + i] = upNormalized[i];
+    rotation[2 * 4 + i] = cameraDirectionOppositeNormalized[i];
+  }
+
+  let perspectiveMatrix = new Array(16).fill(0);
+  perspectiveMatrix[0] = 1 / Math.tan(fov / 2);
+  perspectiveMatrix[5] = state.gl.canvas.width / (Math.tan(fov / 2) * state.gl.canvas.height);
+  perspectiveMatrix[11] = 2.0 / (1 / near - 1 / far);
+  perspectiveMatrix[10] = perspectiveMatrix[11] / far + 1;
+  perspectiveMatrix[14] = -1.0;
+
+  const worldToClip = matrix4Multiply(perspectiveMatrix, matrix4Multiply(rotation, cameraPositionShift));
+
+  state.gl.viewport(0, 0, state.gl.canvas.width, state.gl.canvas.height);
+  state.gl.clearColor(0, 0, 0, 0);
+  state.gl.clearDepth(1);
+  state.gl.clear(state.gl.COLOR_BUFFER_BIT | state.gl.DEPTH_BUFFER_BIT);
+
+  state.gl.bindVertexArray(state.cubesVao);
+  state.gl.useProgram(state.cubesProgram);
+  state.gl.uniformMatrix4fv(state.cubesWorldToClipLocation, false, [
+    worldToClip[0], worldToClip[4], worldToClip[8], worldToClip[12],
+    worldToClip[1], worldToClip[5], worldToClip[9], worldToClip[13],
+    worldToClip[2], worldToClip[6], worldToClip[10], worldToClip[14],
+    worldToClip[3], worldToClip[7], worldToClip[11], worldToClip[15],
+  ]);
+  state.gl.uniform1f(state.numberOfStatesLocation, rule.numberOfStates);
+  state.gl.drawArraysInstanced(state.gl.TRIANGLES, 0, state.singleCubeVertexCount, state.numberOfCubes);
+
+  state.gl.bindVertexArray(state.planesVao);
+  state.gl.useProgram(state.planesProgram);
+  state.gl.uniformMatrix4fv(state.planesWorldToClipLocation, false, [
+    worldToClip[0], worldToClip[4], worldToClip[8], worldToClip[12],
+    worldToClip[1], worldToClip[5], worldToClip[9], worldToClip[13],
+    worldToClip[2], worldToClip[6], worldToClip[10], worldToClip[14],
+    worldToClip[3], worldToClip[7], worldToClip[11], worldToClip[15],
+  ]);
+  state.gl.bindBuffer(state.gl.ARRAY_BUFFER, state.planesBuffer);
+  const cameraDirection: Vector3 = [
+    Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
+    Math.sin(cameraDirectionAngles[1]),
+    Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
+  ];
+  state.gl.bufferSubData(state.gl.ARRAY_BUFFER, 0, new Float32Array([...plane(add(cameraPosition, scale(cameraDirection, 2 * near)), cameraDirection, 2 * near * Math.tan(fov / 2) * 2 * 10 / state.gl.canvas.width, [0.0, 0.0, 0.0, 1.0])]));
+  state.gl.drawArrays(state.gl.TRIANGLES, 0, state.planesVertexCount);
+}
+
+// Main
+function main() {
+  const controlsButton = document.querySelector<HTMLButtonElement>('#controlsButton');
+  if (!controlsButton) { return; }
+
+  const controls = document.querySelector<HTMLDivElement>('#controls');
+  if (!controls) { return; }
+  controls.style.display = 'none';
+
+  controlsButton.addEventListener('click', () => {
+    if (controls.style.display === 'none') {
+      controls.style.display = 'block';
+    } else {
+      controls.style.display = 'none';
+    }
+  });
+
+  let normalSpeed = 0.1;
+  let fastSpeed = 0.3;
+  let mouseSpeed = 0.0003;
+
+  const normalSpeedInput = document.querySelector<HTMLInputElement>('#normalSpeed');
+  if (!normalSpeedInput) { return; }
+  normalSpeedInput.addEventListener('input', (e) => {
+    let speed = Number((e.target! as HTMLInputElement).value);
+    if (speed >= 0) {
+      normalSpeed = speed;
+      normalSpeedInput.style.backgroundColor = "";
+    } else {
+      normalSpeedInput.style.backgroundColor = "rgb(255, 230, 230)";
+    }
+  });
+
+  const fastSpeedInput = document.querySelector<HTMLInputElement>('#fastSpeed');
+  if (!fastSpeedInput) { return; }
+  fastSpeedInput.addEventListener('input', (e) => {
+    let speed = Number((e.target! as HTMLInputElement).value);
+    if (speed >= 0) {
+      fastSpeed = speed;
+      fastSpeedInput.style.backgroundColor = "";
+    } else {
+      fastSpeedInput.style.backgroundColor = "rgb(255, 230, 230)";
+    }
+  });
+
+  const mouseSpeedInput = document.querySelector<HTMLInputElement>('#mouseSpeed');
+  if (!mouseSpeedInput) { return; }
+  mouseSpeedInput.addEventListener('input', (e) => {
+    let speed = Number((e.target! as HTMLInputElement).value);
+    if (speed >= 0) {
+      mouseSpeed = speed;
+      mouseSpeedInput.style.backgroundColor = "";
+    } else {
+      mouseSpeedInput.style.backgroundColor = "rgb(255, 230, 230)";
+    }
+  });
+
+  const canvas = document.querySelector('canvas');
+  if (!canvas) { return; }
+  canvas.width = Math.floor(window.innerWidth);
+  canvas.height = Math.floor(window.innerHeight);
+
+  const webglState = getWebGLState(canvas);
+  if (!webglState) { return; }
+
+  const fpsSpan = document.querySelector<HTMLSpanElement>('#fps')!;
+  if (!fpsSpan) { return; }
+
+  const ruleInput = document.querySelector<HTMLInputElement>('#rule');
+  if (!ruleInput) { return; }
+  let rule = {
+    survival: new Set([4]),
+    birth: new Set([4]),
+    numberOfStates: 5,
+  };
+  ruleInput.addEventListener('input', e => {
+    let ruleString = (e.target! as HTMLInputElement).value;
+    const parsedRule = parseRule(ruleString);
+    if (parsedRule !== null) {
+      rule = parsedRule;
+
+      for (let i = 0; i < cubes.length; i++) {
+        if (cubes[i] > 0) {
+          cubes[i] = rule.numberOfStates - 1;
+        }
+      }
+      setCubesData(cubes, webglState);
+    }
+
+    if (parsedRule !== null) {
+      ruleInput.style.backgroundColor = "rgb(230, 230, 230)";
+    } else {
+      ruleInput.style.backgroundColor = "rgb(255, 230, 230)";
+    }
+  });
+
+  const randomButton = document.querySelector<HTMLButtonElement>('#randomButton');
+  if (!randomButton) { return; }
+  randomButton.addEventListener('click', () => {
+    for (let i = 0; i < cubes.length; i++) {
+      cubes[i] = 0;
+    }
+    for (let x = GRID_SIZE / 2 - 3; x < GRID_SIZE / 2 + 3; x++) {
+      for (let y = GRID_SIZE / 2 - 3; y < GRID_SIZE / 2 + 3; y++) {
+        for (let z = GRID_SIZE / 2 - 3; z < GRID_SIZE / 2 + 3; z++) {
+          if (Math.random() < 0.2) {
+            cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = rule.numberOfStates - 1;
+          }
+        }
+      }
+    }
+
+    setCubesData(cubes, webglState);
+  });
+
+  const clearButton = document.querySelector<HTMLButtonElement>('#clearButton');
+  if (!clearButton) { return; }
+  clearButton.addEventListener('click', () => {
+    for (let i = 0; i < cubes.length; i++) {
+      cubes[i] = 0;
+    }
+    setCubesData(cubes, webglState);
+  });
+
+  window.addEventListener('resize', () => {
+    canvas.width = Math.floor(window.innerWidth);
+    canvas.height = Math.floor(window.innerHeight);
+  });
+
+  let cubes: number[] = new Array(GRID_SIZE * GRID_SIZE * GRID_SIZE).fill(0);
+  let cubesCopy: number[] = new Array(GRID_SIZE * GRID_SIZE * GRID_SIZE).fill(0);
+  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2 - 3] = rule.numberOfStates - 1;
+  cubes[(GRID_SIZE / 2 - 1) * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2 - 3] = rule.numberOfStates - 1;
+  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + (GRID_SIZE / 2 + 1) * GRID_SIZE + GRID_SIZE / 2 - 3] = rule.numberOfStates - 1;
+  cubes[(GRID_SIZE / 2 - 1) * GRID_SIZE * GRID_SIZE + (GRID_SIZE / 2 + 1) * GRID_SIZE + GRID_SIZE / 2 - 3] = rule.numberOfStates - 1;
+  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2 + 2] = rule.numberOfStates - 1;
+  cubes[(GRID_SIZE / 2 - 1) * GRID_SIZE * GRID_SIZE + GRID_SIZE / 2 * GRID_SIZE + GRID_SIZE / 2 + 2] = rule.numberOfStates - 1;
+  cubes[GRID_SIZE / 2 * GRID_SIZE * GRID_SIZE + (GRID_SIZE / 2 + 1) * GRID_SIZE + GRID_SIZE / 2 + 2] = rule.numberOfStates - 1;
+  cubes[(GRID_SIZE / 2 - 1) * GRID_SIZE * GRID_SIZE + (GRID_SIZE / 2 + 1) * GRID_SIZE + GRID_SIZE / 2 + 2] = rule.numberOfStates - 1;
+  setCubesData(cubes, webglState);
+
+  let lastTime = Date.now();
+  let frameCount = 0;
+  const FRAME_COUNT_FOR_FPS = 60;
+
+  let cameraPosition: Vector3 = [-50, 50, 50];
+  let cameraDirectionAngles: [number, number] = [3 * Math.PI / 4, - Math.atan(1 / Math.sqrt(2))]; // [angle-in-xz-from-z, angle-from-xz]
+  const cameraUp: Vector3 = [0, 1, 0];
 
   const keysDown = new Set<string>();
   window.addEventListener('keydown', (e) => {
@@ -843,24 +882,24 @@ function main() {
                       neighbourZ -= GRID_SIZE;
                     }
 
-                    if (cubes[GRID_SIZE * GRID_SIZE * neighbourX + GRID_SIZE * neighbourY + neighbourZ] === rule[2] - 1) {
+                    if (cubes[GRID_SIZE * GRID_SIZE * neighbourX + GRID_SIZE * neighbourY + neighbourZ] === rule.numberOfStates - 1) {
                       neighbours += 1;
                     }
                   }
                 }
               }
 
-              if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] === rule[2] - 1) {
-                if (rule[0].has(neighbours)) {
-                  cubesCopy[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = rule[2] - 1;
+              if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] === rule.numberOfStates - 1) {
+                if (rule.survival.has(neighbours)) {
+                  cubesCopy[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = rule.numberOfStates - 1;
                 } else {
-                  cubesCopy[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = rule[2] - 2;
+                  cubesCopy[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = rule.numberOfStates - 2;
                 }
               } else if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] > 0) {
                 cubesCopy[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] - 1;
               } else {
-                if (rule[1].has(neighbours)) {
-                  cubesCopy[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = rule[2] - 1;
+                if (rule.birth.has(neighbours)) {
+                  cubesCopy[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z] = rule.numberOfStates - 1;
                 }
               }
             }
@@ -871,19 +910,7 @@ function main() {
           cubes[i] = cubesCopy[i];
         }
 
-        let cubesData = [];
-        for (let x = 0; x < GRID_SIZE; x++) {
-          for (let y = 0; y < GRID_SIZE; y++) {
-            for (let z = 0; z < GRID_SIZE; z++) {
-              if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
-                cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2, cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]);
-              }
-            }
-          }
-        }
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, cubesDataBuffer);
-        gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Int8Array(cubesData));
+        setCubesData(cubes, webglState);
       }
     }
   });
@@ -898,16 +925,13 @@ function main() {
       });
     }
   });
-  window.addEventListener("mousemove", e => {
-    mousePosition = [e.clientX, e.clientY];
-  });
   canvas.addEventListener("mousedown", e => {
     if (!document.pointerLockElement) {
       return;
     }
 
     // Ray from camera center to mouse, in world coordinates.
-    const cameraDirection: [number, number, number] = [
+    const cameraDirection: Vector3 = [
       Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
       Math.sin(cameraDirectionAngles[1]),
       Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
@@ -915,9 +939,9 @@ function main() {
 
     // TODO: Handle edge cases for parallel?
     let tmin = Infinity;
-    let center: null | [number, number, number] = null;
-    let normal: null | [number, number, number] = null;
-    let cubeIndex: null | [number, number, number] = null;
+    let center: null | Vector3 = null;
+    let normal: null | Vector3 = null;
+    let cubeIndex: null | Vector3 = null;
     
     for (let x = 0; x < GRID_SIZE; x++) {
       for (let y = 0; y < GRID_SIZE; y++) {
@@ -974,7 +998,7 @@ function main() {
           && -GRID_SIZE / 2 <= z && z < GRID_SIZE / 2
           && cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (y + GRID_SIZE / 2) + z + GRID_SIZE / 2] === 0
         ) {
-          cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (y + GRID_SIZE / 2) + z + GRID_SIZE / 2] = rule[2] - 1;
+          cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (y + GRID_SIZE / 2) + z + GRID_SIZE / 2] = rule.numberOfStates - 1;
         }
       } else if (isFinite(tXZPlane)) {
         const mouseXZPlanePoint = add(cameraPosition, scale(cameraDirection, tXZPlane));
@@ -985,7 +1009,7 @@ function main() {
           && -GRID_SIZE / 2 <= z && z < GRID_SIZE / 2
           && cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (y + GRID_SIZE / 2) + z + GRID_SIZE / 2] === 0
         ) {
-          cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (y + GRID_SIZE / 2) + z + GRID_SIZE / 2] = rule[2] - 1;
+          cubes[GRID_SIZE * GRID_SIZE * (x + GRID_SIZE / 2) + GRID_SIZE * (y + GRID_SIZE / 2) + z + GRID_SIZE / 2] = rule.numberOfStates - 1;
         }
       }
     } else if (e.button === 2) {
@@ -994,18 +1018,7 @@ function main() {
       }
     }
 
-    let cubesData = [];
-    for (let x = 0; x < GRID_SIZE; x++) {
-      for (let y = 0; y < GRID_SIZE; y++) {
-        for (let z = 0; z < GRID_SIZE; z++) {
-          if (cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]) {
-            cubesData.push(x - GRID_SIZE / 2, y - GRID_SIZE / 2, z - GRID_SIZE / 2, cubes[GRID_SIZE * GRID_SIZE * x + GRID_SIZE * y + z]);
-          }
-        }
-      }
-    }
-    gl.bindBuffer(gl.ARRAY_BUFFER, cubesDataBuffer);
-    gl.bufferSubData(gl!.ARRAY_BUFFER, 0, new Int8Array(cubesData));
+    setCubesData(cubes, webglState);
   });
   window.addEventListener("mousemove", e => {
     if (!document.pointerLockElement) {
@@ -1025,7 +1038,7 @@ function main() {
 
   let lastFrame = Date.now();
   function updateAndDraw() {
-    let cameraDirectionOppositeNormalized: [number, number, number] = [
+    let cameraDirectionOppositeNormalized: Vector3 = [
       -Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
       -Math.sin(cameraDirectionAngles[1]),
       -Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
@@ -1036,7 +1049,7 @@ function main() {
 
     // Update
     if (document.pointerLockElement) {
-      let direction: [number, number, number] = [0, 0, 0];
+      let direction: Vector3 = [0, 0, 0];
 
       if (keysDown.has('KeyW')) {
         direction = add(direction, [
@@ -1072,70 +1085,8 @@ function main() {
       }
     }
     lastFrame = Date.now();
-  
-    const cameraPositionShift = new Array(16).fill(0);
-    cameraPositionShift[0] = cameraPositionShift[5] = cameraPositionShift[10] = cameraPositionShift[15] = 1;
-    cameraPositionShift[3] = -cameraPosition[0];
-    cameraPositionShift[7] = -cameraPosition[1];
-    cameraPositionShift[11] = -cameraPosition[2];
-  
-    let rotation = new Array(16).fill(0);
-    rotation[15] = 1;
-    
-    for (let i = 0; i < 3; i++) {
-      rotation[0 * 4 + i] = rightNormalized[i];
-      rotation[1 * 4 + i] = upNormalized[i];
-      rotation[2 * 4 + i] = cameraDirectionOppositeNormalized[i];
-    }
 
-    let perspectiveMatrix = new Array(16).fill(0);
-    perspectiveMatrix[0] = 1 / Math.tan(fov / 2);
-    perspectiveMatrix[5] = gl!.canvas.width / (Math.tan(fov / 2) * gl!.canvas.height);
-    perspectiveMatrix[11] = 2.0 / (1 / near - 1 / far);
-    perspectiveMatrix[10] = perspectiveMatrix[11] / far + 1;
-    perspectiveMatrix[14] = -1.0;
-  
-    const worldToClip = matrixMultiply(perspectiveMatrix, matrixMultiply(rotation, cameraPositionShift));
-
-    gl!.viewport(0, 0, gl!.canvas.width, gl!.canvas.height);
-    gl!.clearColor(0, 0, 0, 0);
-    gl!.clearDepth(1);
-    gl!.clear(gl!.COLOR_BUFFER_BIT | gl!.DEPTH_BUFFER_BIT);
-
-    gl!.bindVertexArray(cubesVao);
-    gl!.useProgram(cubesProgram);
-    gl!.uniformMatrix4fv(cubesWorldToClipLocation, false, [
-      worldToClip[0], worldToClip[4], worldToClip[8], worldToClip[12],
-      worldToClip[1], worldToClip[5], worldToClip[9], worldToClip[13],
-      worldToClip[2], worldToClip[6], worldToClip[10], worldToClip[14],
-      worldToClip[3], worldToClip[7], worldToClip[11], worldToClip[15],
-    ]);
-    gl!.uniform1f(numberOfStatesLocation, rule[2]);
-    let numberOfCubes = 0;
-    for (let i = 0; i < cubes.length; i++) {
-      if (cubes[i]) {
-        numberOfCubes += 1;
-      }
-    }
-    gl!.drawArraysInstanced(gl!.TRIANGLES, 0, singleCubeData.length / 6, numberOfCubes);
-
-    gl!.bindVertexArray(planesVao);
-    gl!.useProgram(planesProgram);
-    gl!.uniformMatrix4fv(planesWorldToClipLocation, false, [
-      worldToClip[0], worldToClip[4], worldToClip[8], worldToClip[12],
-      worldToClip[1], worldToClip[5], worldToClip[9], worldToClip[13],
-      worldToClip[2], worldToClip[6], worldToClip[10], worldToClip[14],
-      worldToClip[3], worldToClip[7], worldToClip[11], worldToClip[15],
-    ]);
-    gl!.bindBuffer(gl!.ARRAY_BUFFER, planesBuffer);
-    const cameraDirection: [number, number, number] = [
-      Math.cos(cameraDirectionAngles[1]) * Math.sin(cameraDirectionAngles[0]),
-      Math.sin(cameraDirectionAngles[1]),
-      Math.cos(cameraDirectionAngles[1]) * Math.cos(cameraDirectionAngles[0])
-    ];
-    gl!.bufferSubData(gl!.ARRAY_BUFFER, 0, new Float32Array([...plane(add(cameraPosition, scale(cameraDirection, 2 * near)), cameraDirection, 2 * near * Math.tan(fov / 2) * 2 * 10 / gl!.canvas.width, [0.0, 0.0, 0.0, 1.0])]));
-    gl!.drawArrays(gl!.TRIANGLES, 0, planes.length / 7);
-
+    drawWebGLState(webglState!, cameraPosition, cameraDirectionAngles, rule);
     frameCount += 1;
     if (frameCount === FRAME_COUNT_FOR_FPS) {
       frameCount = 0;
